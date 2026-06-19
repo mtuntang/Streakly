@@ -1,0 +1,41 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// A habit / goal the user wants to stay consistent with.
+model Goal {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  // Tailwind-friendly color key, e.g. "emerald", "rose", "amber"
+  color       String    @default("emerald")
+  // Lucide icon name, e.g. "Flame", "Dumbbell", "BookOpen"
+  icon        String    @default("Flame")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  checkIns    CheckIn[]
+
+  @@map("goals")
+}
+
+// A single day a goal was completed. `date` is a stable YYYY-MM-DD string
+// so streak math is timezone independent.
+model CheckIn {
+  id        String   @id @default(cuid())
+  goalId    String
+  date      String
+  createdAt DateTime @default(now())
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@unique([goalId, date])
+  @@index([date])
+  @@map("check_ins")
+}
