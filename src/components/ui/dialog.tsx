@@ -50,20 +50,93 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  draggable = false,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  draggable?: boolean
 }) {
+  const contentRef = React.useRef<HTMLDivElement>(null)
+  const offsetRef = React.useRef({ x: 0, y: 0 })
+  const dragState = React.useRef<{
+    startX: number
+    startY: number
+    offsetX: number
+    offsetY: number
+  } | null>(null)
+  const rafRef = React.useRef<number | null>(null)
+
+  // Apply the current offset to the DOM element directly (no React re-render).
+  const applyOffset = React.useCallback(() => {
+    const el = contentRef.current
+    if (!el) return
+    const { x, y } = offsetRef.current
+    el.style.setProperty("--tw-translate-x", `calc(-50% + ${x}px)`)
+    el.style.setProperty("--tw-translate-y", `calc(-50% + ${y}px)`)
+  }, [])
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!draggable) return
+    // Only start dragging from the header (the drag handle), not from form fields.
+    const target = e.target as HTMLElement
+    if (!target.closest("[data-dialog-drag-handle]")) return
+    if (e.button !== 0) return // left click only
+
+    dragState.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      offsetX: offsetRef.current.x,
+      offsetY: offsetRef.current.y,
+    }
+    // Disable the CSS transition while dragging so the dialog follows the cursor instantly.
+    e.currentTarget.classList.add("dragging")
+    // Keep receiving pointer events even when the pointer leaves the dialog.
+    e.currentTarget.setPointerCapture(e.pointerId)
+    e.preventDefault()
+  }
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragState.current) return
+    const dx = e.clientX - dragState.current.startX
+    const dy = e.clientY - dragState.current.startY
+    offsetRef.current = {
+      x: dragState.current.offsetX + dx,
+      y: dragState.current.offsetY + dy,
+    }
+    // Batch updates to the next animation frame for smoothness.
+    if (rafRef.current === null) {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null
+        applyOffset()
+      })
+    }
+  }
+
+  const endDrag = () => {
+    dragState.current = null
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
+    // Re-enable the CSS transition.
+    contentRef.current?.classList.remove("dragging")
+  }
+
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
       <DialogPrimitive.Content
+        ref={contentRef}
         data-slot="dialog-content"
         className={cn(
           "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
           className
         )}
         {...props}
+        onPointerDown={draggable ? handlePointerDown : undefined}
+        onPointerMove={draggable ? handlePointerMove : undefined}
+        onPointerUp={draggable ? endDrag : undefined}
+        onPointerCancel={draggable ? endDrag : undefined}
       >
         {children}
         {showCloseButton && (

@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { GripHorizontal } from "lucide-react";
 import { GOAL_COLORS } from "@/lib/goal-config";
 import { GOAL_ICONS } from "@/lib/goal-config";
 import { GoalIcon } from "./goal-icon";
@@ -94,14 +95,20 @@ export function GoalFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px]">
-        <DialogHeader>
+      <DialogContent draggable className="sm:max-w-[480px]">
+        <DialogHeader
+          data-dialog-drag-handle
+          className="cursor-move select-none"
+        >
           <DialogTitle>{isEdit ? "Edit goal" : "New goal"}</DialogTitle>
           <DialogDescription>
             {isEdit
               ? "Update the details of your habit."
               : "Create a new habit to track daily."}
           </DialogDescription>
+          <span className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 text-muted-foreground/40">
+            <GripHorizontal className="h-4 w-4" />
+          </span>
         </DialogHeader>
 
         <div className="grid gap-4 py-2">

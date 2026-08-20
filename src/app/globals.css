@@ -120,3 +120,9 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Disable the dialog's CSS transition while it's being dragged so it
+   follows the cursor instantly instead of lagging behind. */
+[data-slot="dialog-content"].dragging {
+  transition: none !important;
+}
