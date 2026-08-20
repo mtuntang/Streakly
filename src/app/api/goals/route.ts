@@ -14,36 +14,59 @@ const CreateGoalSchema = z.object({
 });
 
 export async function GET() {
-  await ensureSeedData();
-  const goals = await loadGoals();
-  return NextResponse.json(goals);
+  try {
+    await ensureSeedData();
+    const goals = await loadGoals();
+    return NextResponse.json(goals);
+  } catch (error) {
+    console.error("Failed to load goals:", error);
+    return NextResponse.json(
+      { error: "Failed to load goals. Please try again later." },
+      { status: 500 },
+    );
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const json = await req.json().catch(() => null);
-  const parsed = CreateGoalSchema.safeParse(json);
-  if (!parsed.success) {
+  try {
+    const json = await req.json().catch(() => null);
+    if (!json) {
+      return NextResponse.json(
+        { error: "Invalid JSON body" },
+        { status: 400 },
+      );
+    }
+
+    const parsed = CreateGoalSchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? "Invalid request" },
+        { status: 400 },
+      );
+    }
+
+    const data = parsed.data;
+    const color = data.color ?? "emerald";
+    const icon =
+      data.icon && GOAL_ICONS.includes(data.icon) ? data.icon : "Flame";
+
+    const goal = await db.goal.create({
+      data: {
+        name: data.name,
+        description: data.description ?? null,
+        color,
+        icon,
+      },
+    });
+
+    const goals = await loadGoals();
+    const created = goals.find((g) => g.id === goal.id);
+    return NextResponse.json(created, { status: 201 });
+  } catch (error) {
+    console.error("Failed to create goal:", error);
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "Invalid request" },
-      { status: 400 },
+      { error: "Failed to create goal. Please try again." },
+      { status: 500 },
     );
   }
-
-  const data = parsed.data;
-  const color = data.color ?? "emerald";
-  const icon =
-    data.icon && GOAL_ICONS.includes(data.icon) ? data.icon : "Flame";
-
-  const goal = await db.goal.create({
-    data: {
-      name: data.name,
-      description: data.description ?? null,
-      color,
-      icon,
-    },
-  });
-
-  const goals = await loadGoals();
-  const created = goals.find((g) => g.id === goal.id);
-  return NextResponse.json(created, { status: 201 });
 }

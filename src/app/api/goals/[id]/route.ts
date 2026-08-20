@@ -16,47 +16,87 @@ const UpdateGoalSchema = z.object({
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
-  const { id } = await params;
-  const goals = await loadGoals();
-  const goal = goals.find((g) => g.id === id);
-  if (!goal) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(goal);
+  try {
+    const { id } = await params;
+    const goals = await loadGoals();
+    const goal = goals.find((g) => g.id === id);
+    if (!goal) {
+      return NextResponse.json({ error: "Goal not found" }, { status: 404 });
+    }
+    return NextResponse.json(goal);
+  } catch (error) {
+    console.error("Failed to get goal:", error);
+    return NextResponse.json(
+      { error: "Failed to load goal." },
+      { status: 500 },
+    );
+  }
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
-  const { id } = await params;
-  const json = await req.json().catch(() => null);
-  const parsed = UpdateGoalSchema.safeParse(json);
-  if (!parsed.success) {
+  try {
+    const { id } = await params;
+
+    const json = await req.json().catch(() => null);
+    if (!json) {
+      return NextResponse.json(
+        { error: "Invalid JSON body" },
+        { status: 400 },
+      );
+    }
+
+    const parsed = UpdateGoalSchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? "Invalid request" },
+        { status: 400 },
+      );
+    }
+
+    const existing = await db.goal.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: "Goal not found" }, { status: 404 });
+    }
+
+    const data = parsed.data;
+    const update: Record<string, unknown> = {};
+    if (data.name !== undefined) update.name = data.name;
+    if (data.description !== undefined) update.description = data.description;
+    if (data.color !== undefined) update.color = data.color;
+    if (data.icon !== undefined && GOAL_ICONS.includes(data.icon)) {
+      update.icon = data.icon;
+    }
+
+    await db.goal.update({ where: { id }, data: update });
+
+    const goals = await loadGoals();
+    const updated = goals.find((g) => g.id === id);
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error("Failed to update goal:", error);
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "Invalid request" },
-      { status: 400 },
+      { error: "Failed to update goal." },
+      { status: 500 },
     );
   }
-
-  const existing = await db.goal.findUnique({ where: { id } });
-  if (!existing) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  const data = parsed.data;
-  const update: Record<string, unknown> = {};
-  if (data.name !== undefined) update.name = data.name;
-  if (data.description !== undefined) update.description = data.description;
-  if (data.color !== undefined) update.color = data.color;
-  if (data.icon !== undefined && GOAL_ICONS.includes(data.icon)) {
-    update.icon = data.icon;
-  }
-
-  await db.goal.update({ where: { id }, data: update });
-
-  const goals = await loadGoals();
-  const updated = goals.find((g) => g.id === id);
-  return NextResponse.json(updated);
 }
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
-  const { id } = await params;
-  await db.goal.deleteMany({ where: { id } });
-  return NextResponse.json({ ok: true });
+  try {
+    const { id } = await params;
+
+    const existing = await db.goal.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: "Goal not found" }, { status: 404 });
+    }
+
+    await db.goal.deleteMany({ where: { id } });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Failed to delete goal:", error);
+    return NextResponse.json(
+      { error: "Failed to delete goal." },
+      { status: 500 },
+    );
+  }
 }

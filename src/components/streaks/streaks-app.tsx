@@ -27,23 +27,40 @@ export function StreaksApp() {
   const today = todayKey();
 
   const fetchGoals = React.useCallback(
-    async (silent = false) => {
+    async (silent = false, retries = 2) => {
       if (!silent) setLoading(true);
       setRefreshing(true);
-      try {
-        const res = await fetch("/api/goals", { cache: "no-store" });
-        if (!res.ok) throw new Error("Failed to load goals");
-        const data: GoalDTO[] = await res.json();
-        setGoals(data);
-      } catch {
-        toast({
-          title: "Could not load goals",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
+      let lastError: Error | null = null;
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          const res = await fetch("/api/goals", { cache: "no-store" });
+          if (!res.ok) throw new Error(`Server responded with ${res.status}`);
+          const data: GoalDTO[] = await res.json();
+          if (!Array.isArray(data)) throw new Error("Invalid response format");
+          setGoals(data);
+          setLoading(false);
+          setRefreshing(false);
+          return; // Success — exit early
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error("Unknown error");
+          if (attempt < retries) {
+            // Wait a bit before retrying (exponential backoff)
+            await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+          }
+        }
       }
+      // All retries exhausted
+      toast({
+        title: "Could not load goals",
+        description:
+          lastError?.message === "Failed to fetch"
+            ? "Network error — check your connection."
+            : lastError?.message ?? "An unexpected error occurred.",
+        variant: "destructive",
+      });
+      if (!silent) setGoals([]);
+      setLoading(false);
+      setRefreshing(false);
     },
     [toast],
   );

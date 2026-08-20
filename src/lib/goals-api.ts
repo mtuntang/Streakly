@@ -26,8 +26,14 @@ export async function loadGoals(): Promise<GoalDTO[]> {
   });
 }
 
+// Track whether seed data has been checked this process lifetime
+let seedChecked = false;
+
 /** Seeds a few example goals with realistic streak history if the DB is empty. */
 export async function ensureSeedData(): Promise<void> {
+  if (seedChecked) return;
+  seedChecked = true;
+
   const count = await db.goal.count();
   if (count > 0) return;
 
