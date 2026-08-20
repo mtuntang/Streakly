@@ -88,8 +88,12 @@ function DialogContent({
       offsetX: offsetRef.current.x,
       offsetY: offsetRef.current.y,
     }
-    // Disable the CSS transition while dragging so the dialog follows the cursor instantly.
+    // Sync the inline transform to a known state before the first move.
+    applyOffset()
+    // Disable the CSS transition and open animation while dragging so the
+    // dialog follows the cursor instantly instead of lagging behind.
     e.currentTarget.classList.add("dragging")
+    e.currentTarget.style.animation = "none"
     // Keep receiving pointer events even when the pointer leaves the dialog.
     e.currentTarget.setPointerCapture(e.pointerId)
     e.preventDefault()
@@ -118,7 +122,9 @@ function DialogContent({
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
-    // Re-enable the CSS transition.
+    // Re-enable the CSS transition. Keep the animation disabled so it doesn't
+    // re-trigger the open animation on release (which would make the dialog
+    // appear to disappear and rerender).
     contentRef.current?.classList.remove("dragging")
   }
 
