@@ -5,7 +5,7 @@ import type { GoalDTO } from "@/lib/goal-config";
 /** Loads all goals with their check-ins and computed streak stats. */
 export async function loadGoals(): Promise<GoalDTO[]> {
   const goals = await db.goal.findMany({
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
     include: { checkIns: { select: { date: true } } },
   });
 

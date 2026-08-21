@@ -19,6 +19,8 @@ model Goal {
   color       String    @default("emerald")
   // Lucide icon name, e.g. "Flame", "Dumbbell", "BookOpen"
   icon        String    @default("Flame")
+  // User-defined sort order for drag-and-drop reordering
+  order       Int       @default(0)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   checkIns    CheckIn[]

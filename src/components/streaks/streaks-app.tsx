@@ -1,6 +1,19 @@
 "use client";
 
 import * as React from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+} from "@dnd-kit/sortable";
 import { Flame, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -25,6 +38,12 @@ export function StreaksApp() {
   const [detailOpen, setDetailOpen] = React.useState(false);
 
   const today = todayKey();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+  );
 
   const fetchGoals = React.useCallback(
     async (silent = false, retries = 2) => {
@@ -104,6 +123,39 @@ export function StreaksApp() {
 
   function handleDeleted(goal: GoalDTO) {
     setGoals((prev) => prev.filter((g) => g.id !== goal.id));
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    setGoals((prev) => {
+      const oldIndex = prev.findIndex((g) => g.id === active.id);
+      const newIndex = prev.findIndex((g) => g.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return prev;
+      return arrayMove(prev, oldIndex, newIndex);
+    });
+
+    // Persist the new order to the database.
+    try {
+      const ids = goals.map((g) => g.id);
+      const oldIndex = ids.indexOf(String(active.id));
+      const newIndex = ids.indexOf(String(over.id));
+      if (oldIndex === -1 || newIndex === -1) return;
+      const reordered = arrayMove(ids, oldIndex, newIndex);
+      const res = await fetch("/api/goals/reorder", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: reordered }),
+      });
+      if (!res.ok) throw new Error("Failed to reorder");
+    } catch {
+      toast({
+        title: "Could not save order",
+        description: "Your changes may not persist after refresh.",
+        variant: "destructive",
+      });
+    }
   }
 
   async function handleToggleToday(goal: GoalDTO) {
@@ -220,18 +272,29 @@ export function StreaksApp() {
           <>
             <StatsBar goals={goals} />
 
-            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {goals.map((goal) => (
-                <GoalCard
-                  key={goal.id}
-                  goal={goal}
-                  onToggleToday={handleToggleToday}
-                  onEdit={handleEdit}
-                  onDeleted={handleDeleted}
-                  onOpenDetail={handleOpenDetail}
-                />
-              ))}
-            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={goals.map((g) => g.id)}
+                strategy={rectSortingStrategy}
+              >
+                <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {goals.map((goal) => (
+                    <GoalCard
+                      key={goal.id}
+                      goal={goal}
+                      onToggleToday={handleToggleToday}
+                      onEdit={handleEdit}
+                      onDeleted={handleDeleted}
+                      onOpenDetail={handleOpenDetail}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           </>
         )}
       </main>

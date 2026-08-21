@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Flame, MoreHorizontal, Pencil, Trash2, Trophy, Check } from "lucide-react";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Flame, MoreHorizontal, Pencil, Trash2, Trophy, Check, GripHorizontal } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -50,6 +52,15 @@ export function GoalCard({
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
 
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: goal.id });
+
   async function handleDelete() {
     setDeleting(true);
     try {
@@ -73,15 +84,36 @@ export function GoalCard({
   return (
     <>
       <Card
+        ref={setNodeRef}
+        style={{
+          transform: CSS.Transform.toString(transform),
+          transition,
+          willChange: "transform",
+        }}
         className={cn(
-          "group relative overflow-hidden transition-all hover:shadow-md",
+          "group relative overflow-hidden transition-shadow hover:shadow-md",
           "border-border/70",
+          isDragging && "z-10 opacity-80 shadow-xl",
         )}
       >
         {/* color accent strip */}
         <div className={cn("absolute inset-x-0 top-0 h-1", colorCfg.bg)} />
 
-        <CardContent className="pt-5">
+        {/* Drag handle bar at the top of the card */}
+        <div className="flex items-center justify-center border-b border-border/50 py-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-10 cursor-grab touch-none text-muted-foreground/60 hover:text-muted-foreground active:cursor-grabbing"
+            aria-label="Drag to reorder"
+            {...attributes}
+            {...listeners}
+          >
+            <GripHorizontal className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <CardContent className="pt-4">
           {/* Header */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-3">
@@ -106,17 +138,18 @@ export function GoalCard({
               </div>
             </div>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0 text-muted-foreground"
-                  aria-label="Goal actions"
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
+            <div className="flex shrink-0 items-center gap-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-muted-foreground"
+                    aria-label="Goal actions"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => onEdit(goal)}>
                   <Pencil className="mr-2 h-4 w-4" />
@@ -130,7 +163,8 @@ export function GoalCard({
                   Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
-            </DropdownMenu>
+              </DropdownMenu>
+            </div>
           </div>
 
           {/* Streak display */}

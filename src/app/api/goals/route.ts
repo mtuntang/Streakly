@@ -50,12 +50,17 @@ export async function POST(req: NextRequest) {
     const icon =
       data.icon && GOAL_ICONS.includes(data.icon) ? data.icon : "Flame";
 
+    // Place new goals at the end of the current order.
+    const maxOrder = await db.goal.aggregate({ _max: { order: true } });
+    const nextOrder = (maxOrder._max.order ?? -1) + 1;
+
     const goal = await db.goal.create({
       data: {
         name: data.name,
         description: data.description ?? null,
         color,
         icon,
+        order: nextOrder,
       },
     });
 
