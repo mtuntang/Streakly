@@ -1,0 +1,9 @@
+# Normalize line endings: LF is canonical in the repo and in the working tree.
+# This prevents the phantom "modified" files caused by LF/CRLF flip-flopping
+# between editors/tools on Windows and core.autocrlf.
+* text=auto eol=lf
+
+# Windows scripts genuinely need CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
