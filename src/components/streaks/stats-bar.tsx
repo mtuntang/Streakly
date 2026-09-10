@@ -3,7 +3,7 @@
 import { Flame, Trophy, CalendarCheck, CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import type { GoalDTO } from "@/lib/goal-config";
+import type { GoalDTO } from "@streakly/shared";
 
 interface StatsBarProps {
   goals: GoalDTO[];

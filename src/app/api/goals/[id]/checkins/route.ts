@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { loadGoals } from "@/lib/goals-api";
-import { toKey, fromKey } from "@/lib/streaks";
+import { toKey, fromKey } from "@streakly/shared";
 
 const CheckInSchema = z.object({
   date: z
