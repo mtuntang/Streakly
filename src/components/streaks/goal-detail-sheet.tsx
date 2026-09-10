@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { getColor, type GoalDTO } from "@streakly/shared";
+import { cadenceLabel } from "@streakly/shared";
 import { GoalIcon } from "./goal-icon";
 import { Heatmap } from "./heatmap";
 import { lastNDays, prettyDate } from "@streakly/shared";
@@ -74,6 +75,9 @@ export function GoalDetailSheet({
               </div>
               <div>
                 <SheetTitle className="text-xl">{goal.name}</SheetTitle>
+                <p className="text-xs text-muted-foreground">
+                  {cadenceLabel(goal.schedule)}
+                </p>
                 {goal.description ? (
                   <SheetDescription className="mt-1">
                     {goal.description}
@@ -127,6 +131,7 @@ export function GoalDetailSheet({
               <Heatmap
                 dateKeys={goal.checkIns.map((c) => c.date)}
                 color={goal.color}
+                schedule={goal.schedule}
                 weeks={26}
                 cellSize={13}
                 showMonths

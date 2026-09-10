@@ -5,7 +5,9 @@ import {
   buildHeatmap,
   prettyDate,
   toKey,
+  isScheduledDay,
   type HeatmapCell,
+  type Schedule,
 } from "@streakly/shared";
 import { getColor } from "@streakly/shared";
 import { cn } from "@/lib/utils";
@@ -17,6 +19,8 @@ interface HeatmapProps {
   cellSize?: number;
   gap?: number;
   showMonths?: boolean;
+  /** Optional goal cadence — unscheduled days render dimmed. */
+  schedule?: Schedule | null;
   className?: string;
 }
 
@@ -42,6 +46,7 @@ export function Heatmap({
   cellSize = 13,
   gap = 3,
   showMonths = true,
+  schedule = null,
   className,
 }: HeatmapProps) {
   const grid = React.useMemo(
@@ -101,6 +106,8 @@ export function Heatmap({
               const isToday = cell.key === today;
               const isFuture = cell.inFuture;
               const on = cell.count > 0;
+              const unscheduled =
+                !on && !isScheduledDay(schedule, cell.date.getDay());
               return (
                 <div
                   key={cell.key}
@@ -114,6 +121,7 @@ export function Heatmap({
                       : on
                         ? colorCfg.cellOn
                         : "bg-muted/60 dark:bg-muted/40",
+                    unscheduled && "opacity-25",
                     isToday && "ring-2 ring-offset-1 ring-offset-background ring-foreground/40",
                   )}
                   style={{ width: cellPx, height: cellPx }}
