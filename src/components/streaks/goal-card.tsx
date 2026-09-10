@@ -102,7 +102,7 @@ export function GoalCard({
           willChange: "transform",
         }}
         className={cn(
-          "group relative overflow-hidden transition-shadow hover:shadow-md",
+          "group relative gap-0 overflow-hidden py-2 transition-shadow hover:shadow-md",
           "border-border/70",
           isDragging && "z-10 opacity-80 shadow-xl",
         )}
