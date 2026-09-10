@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { loadGoals, ensureSeedData } from "@/lib/goals-api";
-import { GOAL_COLORS, GOAL_ICONS } from "@streakly/shared";
+import { GOAL_COLORS, GOAL_ICONS, ScheduleSchema } from "@streakly/shared";
 
 const colorKeys = GOAL_COLORS.map((c) => c.key);
 
@@ -11,6 +12,7 @@ const CreateGoalSchema = z.object({
   description: z.string().trim().max(280).optional().nullable(),
   color: z.enum(colorKeys as [string, ...string[]]).optional(),
   icon: z.string().optional(),
+  schedule: ScheduleSchema.optional().nullable(),
 });
 
 export async function GET() {
@@ -61,6 +63,7 @@ export async function POST(req: NextRequest) {
         color,
         icon,
         order: nextOrder,
+        schedule: data.schedule === null ? Prisma.JsonNull : (data.schedule ?? undefined),
       },
     });
 

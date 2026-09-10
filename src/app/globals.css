@@ -126,3 +126,46 @@
 [data-slot="dialog-content"].dragging {
   transition: none !important;
 }
+
+/* Marquee for overflowing card descriptions: classic right-to-left ticker.
+   The span holds the text twice; sliding it by -50% of its own width loops
+   seamlessly. Active only when the text overflows (measured in JS). */
+@keyframes marquee-rtl {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-text {
+  display: inline-flex;
+  white-space: nowrap;
+  will-change: transform;
+  backface-visibility: hidden;
+  /* Isolate onto its own compositor layer and avoid repaints from
+     overlapping ancestors — the usual cause of marquee stutter. */
+  transform: translateZ(0);
+  position: relative;
+  z-index: 0;
+}
+
+.marquee-text.scrolling {
+  animation: marquee-rtl 12s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-text.scrolling {
+    animation: none;
+  }
+}
+
+.marquee-text.scrolling:hover {
+  animation-play-state: paused;
+}
+
+.marquee-text .marquee-gap {
+  flex: none;
+  width: 3em;
+}

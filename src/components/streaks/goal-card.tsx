@@ -27,6 +27,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { getColor, type GoalDTO } from "@streakly/shared";
+import {
+  cadenceLabel,
+  isScheduledDay,
+  nextScheduledDayKey,
+  weekdayShort,
+} from "@streakly/shared";
 import { GoalIcon } from "./goal-icon";
 import { Heatmap } from "./heatmap";
 import { cn } from "@/lib/utils";
@@ -80,6 +86,11 @@ export function GoalCard({
   }
 
   const doneToday = goal.stats.doneToday;
+  const today = new Date();
+  const restDay = !isScheduledDay(goal.schedule, today.getDay());
+  const nextDayShort = restDay
+    ? weekdayShort(new Date(nextScheduledDayKey(goal.schedule, new Date().toISOString().slice(0, 10))).getDay())
+    : null;
 
   return (
     <>
@@ -91,7 +102,7 @@ export function GoalCard({
           willChange: "transform",
         }}
         className={cn(
-          "group relative overflow-hidden transition-shadow hover:shadow-md",
+          "group relative gap-0 overflow-hidden py-2 transition-shadow hover:shadow-md",
           "border-border/70",
           isDragging && "z-10 opacity-80 shadow-xl",
         )}
@@ -135,6 +146,9 @@ export function GoalCard({
                     {goal.description}
                   </p>
                 ) : null}
+                <Badge variant="outline" className="mt-1.5 w-fit text-[10px] font-medium">
+                  {cadenceLabel(goal.schedule)}
+                </Badge>
               </div>
             </div>
 
@@ -206,27 +220,38 @@ export function GoalCard({
             </div>
           </div>
 
-          {/* Today toggle */}
-          <Button
-            onClick={() => onToggleToday(goal)}
-            className={cn(
-              "mt-4 w-full",
-              doneToday
-                ? cn(colorCfg.bg, "text-white hover:opacity-90")
-                : "border border-dashed border-border bg-transparent text-foreground hover:bg-accent",
-            )}
-            variant={doneToday ? "default" : "outline"}
-            aria-pressed={doneToday}
-          >
-            {doneToday ? (
-              <>
-                <Check className="mr-2 h-4 w-4" />
-                Completed today
-              </>
-            ) : (
-              "Mark done today"
-            )}
-          </Button>
+          {/* Today toggle — disabled on unscheduled days */}
+          {restDay ? (
+            <Button
+              disabled
+              variant="outline"
+              className="mt-4 w-full border-dashed opacity-60"
+              aria-disabled
+            >
+              Rest day — back {nextDayShort}
+            </Button>
+          ) : (
+            <Button
+              onClick={() => onToggleToday(goal)}
+              className={cn(
+                "mt-4 w-full",
+                doneToday
+                  ? cn(colorCfg.bg, "text-white hover:opacity-90")
+                  : "border border-dashed border-border bg-transparent text-foreground hover:bg-accent",
+              )}
+              variant={doneToday ? "default" : "outline"}
+              aria-pressed={doneToday}
+            >
+              {doneToday ? (
+                <>
+                  <Check className="mr-2 h-4 w-4" />
+                  Completed today
+                </>
+              ) : (
+                "Mark done today"
+              )}
+            </Button>
+          )}
 
           {/* Mini heatmap */}
           <button
@@ -237,6 +262,7 @@ export function GoalCard({
             <Heatmap
               dateKeys={goal.checkIns.map((c) => c.date)}
               color={goal.color}
+              schedule={goal.schedule}
               weeks={14}
               cellSize={11}
               showMonths={false}

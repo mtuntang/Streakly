@@ -1,6 +1,10 @@
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { computeStreaks } from "@streakly/shared";
-import type { GoalDTO } from "@streakly/shared";
+import {
+  computeStreaks,
+  normalizeSchedule,
+  type GoalDTO,
+} from "@streakly/shared";
 
 /** Loads all goals with their check-ins and computed streak stats. */
 export async function loadGoals(): Promise<GoalDTO[]> {
@@ -11,13 +15,15 @@ export async function loadGoals(): Promise<GoalDTO[]> {
 
   return goals.map((g) => {
     const dates = g.checkIns.map((c) => c.date);
-    const stats = computeStreaks(dates);
+    const schedule = normalizeSchedule(g.schedule);
+    const stats = computeStreaks(dates, new Date(), schedule);
     return {
       id: g.id,
       name: g.name,
       description: g.description,
       color: g.color,
       icon: g.icon,
+      schedule,
       createdAt: g.createdAt.toISOString(),
       updatedAt: g.updatedAt.toISOString(),
       checkIns: g.checkIns,
@@ -43,6 +49,8 @@ export async function ensureSeedData(): Promise<void> {
       description: "30 minutes of movement to start the day.",
       color: "orange",
       icon: "Dumbbell",
+      // weekdays cadence: Mon–Fri
+      schedule: { type: "weekdays", days: [1, 2, 3, 4, 5] },
       // ~5 week streak with a couple gaps
       pattern: [1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     },
@@ -51,6 +59,8 @@ export async function ensureSeedData(): Promise<void> {
       description: "Feed the mind every night.",
       color: "violet",
       icon: "BookOpen",
+      // weekly cadence: 4× per week
+      schedule: { type: "weekly", timesPerWeek: 4 },
       pattern: [1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     },
     {
@@ -78,6 +88,7 @@ export async function ensureSeedData(): Promise<void> {
         description: s.description,
         color: s.color,
         icon: s.icon,
+        schedule: (s.schedule ?? Prisma.JsonNull) as Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput,
       },
     });
 

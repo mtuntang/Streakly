@@ -7,9 +7,11 @@ import {
   CalendarCheck,
   Target,
   Pencil,
+  X as XIcon,
 } from "lucide-react";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -17,6 +19,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { getColor, type GoalDTO } from "@streakly/shared";
+import { cadenceLabel } from "@streakly/shared";
 import { GoalIcon } from "./goal-icon";
 import { Heatmap } from "./heatmap";
 import { lastNDays, prettyDate } from "@streakly/shared";
@@ -59,9 +62,12 @@ export function GoalDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
-        <SheetHeader>
-          <div className="flex items-start justify-between gap-3">
+      <SheetContent
+        hideClose
+        className="w-full overflow-y-auto px-5 pb-8 sm:max-w-2xl sm:px-7"
+      >
+        <SheetHeader className="border-b border-border/60 pt-5 pb-4">
+          <div className="flex items-start justify-between gap-3 pr-1">
             <div className="flex items-start gap-3">
               <div
                 className={cn(
@@ -74,6 +80,9 @@ export function GoalDetailSheet({
               </div>
               <div>
                 <SheetTitle className="text-xl">{goal.name}</SheetTitle>
+                <p className="text-xs text-muted-foreground">
+                  {cadenceLabel(goal.schedule)}
+                </p>
                 {goal.description ? (
                   <SheetDescription className="mt-1">
                     {goal.description}
@@ -81,26 +90,32 @@ export function GoalDetailSheet({
                 ) : null}
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onEdit(goal)}
-              className="shrink-0"
-            >
-              <Pencil className="mr-1.5 h-3.5 w-3.5" />
-              Edit
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onEdit(goal)}
+                className="gap-1.5"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </Button>
+              <SheetClose className="ring-offset-background focus:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-full border bg-background/80 text-muted-foreground backdrop-blur transition-colors hover:bg-muted hover:text-foreground focus:ring-2 focus:ring-offset-2 focus:outline-hidden">
+                <XIcon className="h-4 w-4" />
+                <span className="sr-only">Close</span>
+              </SheetClose>
+            </div>
           </div>
         </SheetHeader>
 
-        <div className="mt-6 space-y-6">
+        <div className="mt-6 space-y-7">
           {/* Stat grid */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {stats.map((s) => (
               <div
                 key={s.label}
                 className={cn(
-                  "rounded-xl border p-3",
+                  "min-w-0 rounded-xl border px-4 pb-3.5 pt-4 shadow-sm transition-colors",
                   s.highlight
                     ? cn(colorCfg.border, colorCfg.bgSoft)
                     : "border-border bg-muted/30",
@@ -112,10 +127,12 @@ export function GoalDetailSheet({
                     s.highlight ? colorCfg.text : "text-muted-foreground",
                   )}
                 />
-                <div className="mt-1.5 text-2xl font-bold tabular-nums">
+                <div className="mt-2 text-2xl font-bold tabular-nums">
                   {s.value}
                 </div>
-                <div className="text-xs text-muted-foreground">{s.label}</div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {s.label}
+                </div>
               </div>
             ))}
           </div>
@@ -127,6 +144,7 @@ export function GoalDetailSheet({
               <Heatmap
                 dateKeys={goal.checkIns.map((c) => c.date)}
                 color={goal.color}
+                schedule={goal.schedule}
                 weeks={26}
                 cellSize={13}
                 showMonths
