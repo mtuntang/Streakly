@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { loadGoals } from "@/lib/goals-api";
-import { GOAL_COLORS, GOAL_ICONS } from "@/lib/goal-config";
+import { GOAL_COLORS, GOAL_ICONS } from "@streakly/shared";
 
 const colorKeys = GOAL_COLORS.map((c) => c.key);
 

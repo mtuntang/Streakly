@@ -26,7 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { getColor, type GoalDTO } from "@/lib/goal-config";
+import { getColor, type GoalDTO } from "@streakly/shared";
 import { GoalIcon } from "./goal-icon";
 import { Heatmap } from "./heatmap";
 import { cn } from "@/lib/utils";

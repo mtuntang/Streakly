@@ -16,10 +16,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { getColor, type GoalDTO } from "@/lib/goal-config";
+import { getColor, type GoalDTO } from "@streakly/shared";
 import { GoalIcon } from "./goal-icon";
 import { Heatmap } from "./heatmap";
-import { lastNDays, prettyDate } from "@/lib/streaks";
+import { lastNDays, prettyDate } from "@streakly/shared";
 import { cn } from "@/lib/utils";
 
 interface GoalDetailSheetProps {

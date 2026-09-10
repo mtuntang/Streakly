@@ -15,10 +15,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { GripHorizontal } from "lucide-react";
-import { GOAL_COLORS } from "@/lib/goal-config";
-import { GOAL_ICONS } from "@/lib/goal-config";
+import { GOAL_COLORS } from "@streakly/shared";
+import { GOAL_ICONS } from "@streakly/shared";
 import { GoalIcon } from "./goal-icon";
-import type { GoalDTO } from "@/lib/goal-config";
+import type { GoalDTO } from "@streakly/shared";
 import { cn } from "@/lib/utils";
 
 interface GoalFormDialogProps {

@@ -6,8 +6,8 @@ import {
   prettyDate,
   toKey,
   type HeatmapCell,
-} from "@/lib/streaks";
-import { getColor } from "@/lib/goal-config";
+} from "@streakly/shared";
+import { getColor } from "@streakly/shared";
 import { cn } from "@/lib/utils";
 
 interface HeatmapProps {

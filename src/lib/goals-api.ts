@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { computeStreaks } from "@/lib/streaks";
-import type { GoalDTO } from "@/lib/goal-config";
+import { computeStreaks } from "@streakly/shared";
+import type { GoalDTO } from "@streakly/shared";
 
 /** Loads all goals with their check-ins and computed streak stats. */
 export async function loadGoals(): Promise<GoalDTO[]> {
