@@ -17,6 +17,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { GripHorizontal } from "lucide-react";
 import { GOAL_COLORS } from "@streakly/shared";
 import { GOAL_ICONS } from "@streakly/shared";
+import {
+  ScheduleSchema,
+  weekdayShort,
+  type Schedule,
+} from "@streakly/shared";
 import { GoalIcon } from "./goal-icon";
 import type { GoalDTO } from "@streakly/shared";
 import { cn } from "@/lib/utils";
@@ -41,6 +46,9 @@ export function GoalFormDialog({
   const [description, setDescription] = React.useState("");
   const [color, setColor] = React.useState("emerald");
   const [icon, setIcon] = React.useState("Flame");
+  const [mode, setMode] = React.useState<"daily" | "weekdays" | "weekly">("daily");
+  const [days, setDays] = React.useState<number[]>([1, 3, 5]);
+  const [timesPerWeek, setTimesPerWeek] = React.useState(3);
   const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
@@ -49,12 +57,41 @@ export function GoalFormDialog({
       setDescription(goal?.description ?? "");
       setColor(goal?.color ?? "emerald");
       setIcon(goal?.icon ?? "Flame");
+      const s = goal?.schedule ?? { type: "daily" as const };
+      setMode(s.type);
+      if (s.type === "weekdays") setDays(s.days);
+      if (s.type === "weekly") setTimesPerWeek(s.timesPerWeek);
     }
   }, [open, goal]);
+
+  const currentSchedule: Schedule | null =
+    mode === "daily"
+      ? { type: "daily" }
+      : mode === "weekdays"
+        ? { type: "weekdays", days }
+        : { type: "weekly", timesPerWeek };
+
+  function toggleDay(d: number) {
+    setDays((prev) =>
+      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b),
+    );
+  }
 
   async function handleSave() {
     if (!name.trim()) {
       toast({ title: "Name is required", variant: "destructive" });
+      return;
+    }
+    if (mode === "weekdays" && days.length === 0) {
+      toast({
+        title: "Pick at least one day",
+        variant: "destructive",
+      });
+      return;
+    }
+    const parsedSchedule = ScheduleSchema.safeParse(currentSchedule);
+    if (!parsedSchedule.success) {
+      toast({ title: "Invalid cadence", variant: "destructive" });
       return;
     }
     setSaving(true);
@@ -69,6 +106,7 @@ export function GoalFormDialog({
           description: description.trim() || null,
           color,
           icon,
+          schedule: parsedSchedule.data,
         }),
       });
       if (!res.ok) {
@@ -179,6 +217,84 @@ export function GoalFormDialog({
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Cadence</Label>
+            <div className="flex rounded-lg border border-border p-1">
+              {(
+                [
+                  ["daily", "Every day"],
+                  ["weekdays", "Specific days"],
+                  ["weekly", "X per week"],
+                ] as const
+              ).map(([m, label]) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  aria-pressed={mode === m}
+                  className={cn(
+                    "flex-1 rounded-md px-2 py-1.5 text-sm transition-colors",
+                    mode === m
+                      ? "bg-accent font-medium text-foreground"
+                      : "text-muted-foreground hover:bg-accent/50",
+                  )}
+                >
+                  {m === "daily" ? "Every day" : m === "weekdays" ? "Specific days" : "X per week"}
+                </button>
+              ))}
+            </div>
+
+            {mode === "weekdays" && (
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {[0, 1, 2, 3, 4, 5, 6].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => toggleDay(d)}
+                    aria-label={weekdayShort(d)}
+                    aria-pressed={days.includes(d)}
+                    className={cn(
+                      "h-9 min-w-9 rounded-md border px-2 text-xs font-medium transition-colors",
+                      days.includes(d)
+                        ? "border-foreground bg-accent text-foreground"
+                        : "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
+                    )}
+                  >
+                    {weekdayShort(d)}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {mode === "weekly" && (
+              <div className="mt-1 flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Fewer times per week"
+                  onClick={() => setTimesPerWeek((t) => Math.max(1, t - 1))}
+                  disabled={timesPerWeek <= 1}
+                >
+                  −
+                </Button>
+                <span className="min-w-16 text-center text-sm font-medium">
+                  {timesPerWeek}× per week
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="More times per week"
+                  onClick={() => setTimesPerWeek((t) => Math.min(7, t + 1))}
+                  disabled={timesPerWeek >= 7}
+                >
+                  +
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
