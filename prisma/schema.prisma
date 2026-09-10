@@ -18,7 +18,9 @@ model Goal {
   // Tailwind-friendly color key, e.g. "emerald", "rose", "amber"
   color       String    @default("emerald")
   // Lucide icon name, e.g. "Flame", "Dumbbell", "BookOpen"
-  icon        String    @default("Flame")
+    icon        String    @default("Flame")
+    // Cadence: null = daily; else { type: "daily"|"weekdays"|"weekly", ... } JSON
+    schedule    Json?
   // User-defined sort order for drag-and-drop reordering
   order       Int       @default(0)
   createdAt   DateTime  @default(now())

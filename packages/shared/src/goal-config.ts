@@ -145,12 +145,15 @@ export const GOAL_ICONS: string[] = [
   "Coffee",
 ];
 
+import type { Schedule } from "./schedule";
+
 export type GoalDTO = {
   id: string;
   name: string;
   description: string | null;
   color: string;
   icon: string;
+  schedule: Schedule | null;
   createdAt: string;
   updatedAt: string;
   checkIns: { date: string }[];

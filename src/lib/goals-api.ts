@@ -1,6 +1,9 @@
 import { db } from "@/lib/db";
-import { computeStreaks } from "@streakly/shared";
-import type { GoalDTO } from "@streakly/shared";
+import {
+  computeStreaks,
+  normalizeSchedule,
+  type GoalDTO,
+} from "@streakly/shared";
 
 /** Loads all goals with their check-ins and computed streak stats. */
 export async function loadGoals(): Promise<GoalDTO[]> {
@@ -11,13 +14,15 @@ export async function loadGoals(): Promise<GoalDTO[]> {
 
   return goals.map((g) => {
     const dates = g.checkIns.map((c) => c.date);
-    const stats = computeStreaks(dates);
+    const schedule = normalizeSchedule(g.schedule);
+    const stats = computeStreaks(dates, new Date(), schedule);
     return {
       id: g.id,
       name: g.name,
       description: g.description,
       color: g.color,
       icon: g.icon,
+      schedule,
       createdAt: g.createdAt.toISOString(),
       updatedAt: g.updatedAt.toISOString(),
       checkIns: g.checkIns,
