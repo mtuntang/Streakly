@@ -37,6 +37,9 @@ let seedChecked = false;
 
 /** Seeds a few example goals with realistic streak history if the DB is empty. */
 export async function ensureSeedData(): Promise<void> {
+  // Demo scaffolding must never run in production: an empty DB after a real
+  // signup would otherwise get fake goals.
+  if (process.env.NODE_ENV === "production") return;
   if (seedChecked) return;
   seedChecked = true;
 
