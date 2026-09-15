@@ -90,7 +90,7 @@ export function GoalCard({
   const isWeekly = goal.schedule?.type === "weekly";
 
   // Copy for daily/weekdays cards — honest states, never reuse empty-state copy.
-  const streakCopy = () => {
+  const cardStatusCopy = () => {
     if (cardState.kind === "rest") return `Rest day — back ${cardState.nextDayShort}`;
     if (doneToday) return "Completed today";
     if (goal.stats.current > 0) {
@@ -240,7 +240,7 @@ export function GoalCard({
                     day{goal.stats.current === 1 ? "" : "s"}
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">{streakCopy()}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{cardStatusCopy()}</p>
               </div>
               <div className="flex flex-col items-end gap-1">
                 <Badge variant="secondary" className="gap-1 font-medium">
