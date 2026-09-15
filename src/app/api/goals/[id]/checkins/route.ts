@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { loadGoals } from "@/lib/goals-api";
-import { toKey, fromKey, isScheduledDay } from "@streakly/shared";
+import { toKey, fromKey } from "@streakly/shared";
 
 const CheckInSchema = z.object({
   date: z
@@ -43,21 +43,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Invalid date" }, { status: 400 });
     }
 
-    // Gate only the CREATE direction on scheduled days: un-checking is
-    // always allowed so users can clean up stray check-ins.
+    // Voluntary rest-day check-ins are allowed (they count toward total but
+    // not streaks). Un-checking is always allowed so users can clean up.
     const existing = await db.checkIn.findUnique({
       where: { goalId_date: { goalId: id, date: dateKey } },
     });
 
-    if (!existing) {
-      const goalDto = (await loadGoals()).find((g) => g.id === id);
-      if (goalDto && !isScheduledDay(goalDto.schedule, fromKey(dateKey).getDay())) {
-        return NextResponse.json(
-          { error: "Not a scheduled day for this goal" },
-          { status: 400 },
-        );
-      }
-    }
 
     let checked: boolean;
     if (existing) {
