@@ -120,7 +120,7 @@ export function Heatmap({
                       ? "bg-transparent"
                       : on
                         ? colorCfg.cellOn
-                        : "bg-muted/60 dark:bg-muted/40",
+                        : "bg-muted dark:bg-muted/40",
                     unscheduled && "opacity-25",
                     isToday && "ring-2 ring-offset-1 ring-offset-background ring-foreground/40",
                   )}
@@ -134,7 +134,7 @@ export function Heatmap({
       </div>
       <div className="mt-2 flex h-4 items-center gap-1.5 text-[10px] text-muted-foreground">
         <span>Less</span>
-        <div className={cn("h-2.5 w-2.5 rounded-[2px] bg-muted/60")} />
+        <div className={cn("h-2.5 w-2.5 rounded-[2px] bg-muted")} />
         <div className={cn("h-2.5 w-2.5 rounded-[2px]", colorCfg.cellOn, "opacity-40")} />
         <div className={cn("h-2.5 w-2.5 rounded-[2px]", colorCfg.cellOn, "opacity-70")} />
         <div className={cn("h-2.5 w-2.5 rounded-[2px]", colorCfg.cellOn)} />
