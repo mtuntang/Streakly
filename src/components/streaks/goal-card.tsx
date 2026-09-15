@@ -26,13 +26,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { getColor, type GoalDTO } from "@streakly/shared";
+import { getColor, toKey, type GoalDTO } from "@streakly/shared";
 import {
   cadenceLabel,
-  isScheduledDay,
-  nextScheduledDayKey,
-  weekdayShort,
+  cardCheckinState,
 } from "@streakly/shared";
+import { startOfWeek, addDays, format } from "date-fns";
 import { GoalIcon } from "./goal-icon";
 import { Heatmap } from "./heatmap";
 import { cn } from "@/lib/utils";
@@ -87,10 +86,19 @@ export function GoalCard({
 
   const doneToday = goal.stats.doneToday;
   const today = new Date();
-  const restDay = !isScheduledDay(goal.schedule, today.getDay());
-  const nextDayShort = restDay
-    ? weekdayShort(new Date(nextScheduledDayKey(goal.schedule, new Date().toISOString().slice(0, 10))).getDay())
-    : null;
+  const cardState = cardCheckinState(goal.schedule, goal.stats, today);
+  const isWeekly = goal.schedule?.type === "weekly";
+
+  // Copy for daily/weekdays cards — honest states, never reuse empty-state copy.
+  const streakCopy = () => {
+    if (cardState.kind === "rest") return `Rest day — back ${cardState.nextDayShort}`;
+    if (doneToday) return "Completed today";
+    if (goal.stats.current > 0) {
+      return goal.stats.active ? "Streak alive — check in today!" : "Current streak";
+    }
+    if (cardState.brokenStreak) return "Streak broken — start again today";
+    return "No active streak yet";
+  };
 
   return (
     <>
@@ -181,54 +189,83 @@ export function GoalCard({
             </div>
           </div>
 
-          {/* Streak display */}
-          <div className="mt-4 flex items-end justify-between gap-3">
-            <div>
-              <div className="flex items-baseline gap-2">
-                <Flame
-                  className={cn(
-                    "h-7 w-7",
-                    goal.stats.current > 0 ? colorCfg.text : "text-muted-foreground/50",
-                  )}
-                />
-                <span className="text-4xl font-bold tabular-nums leading-none">
-                  {goal.stats.current}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  day{goal.stats.current === 1 ? "" : "s"}
+          {/* Streak display — branches per cadence */}
+          {isWeekly ? (
+            <div className="mt-4 flex items-end justify-between gap-3">
+              <div>
+                <div className="flex items-baseline gap-2">
+                  <Flame
+                    className={cn(
+                      "h-7 w-7",
+                      goal.stats.current > 0 ? colorCfg.text : "text-muted-foreground/50",
+                    )}
+                  />
+                  <span className="text-4xl font-bold tabular-nums leading-none">
+                    {goal.stats.current}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    week{goal.stats.current === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {goal.stats.week?.met
+                    ? "Quota met this week"
+                    : `${Math.max((goal.stats.week?.quota ?? 0) - (goal.stats.week?.done ?? 0), 0)} to go this week`}
+                </p>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <Badge variant="secondary" className="gap-1 font-medium">
+                  <Trophy className="h-3 w-3" />
+                  Best {goal.stats.longest}w
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {goal.stats.total} total
                 </span>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {goal.stats.current > 0
-                  ? goal.stats.active && !doneToday
-                    ? "Streak alive — check in today!"
-                    : "Current streak"
-                  : doneToday
-                    ? "First day done — keep going!"
-                    : "No active streak yet"}
-              </p>
             </div>
-
-            <div className="flex flex-col items-end gap-1">
-              <Badge variant="secondary" className="gap-1 font-medium">
-                <Trophy className="h-3 w-3" />
-                Best {goal.stats.longest}d
-              </Badge>
-              <span className="text-xs text-muted-foreground">
-                {goal.stats.total} total
-              </span>
+          ) : (
+            <div className="mt-4 flex items-end justify-between gap-3">
+              <div>
+                <div className="flex items-baseline gap-2">
+                  <Flame
+                    className={cn(
+                      "h-7 w-7",
+                      goal.stats.current > 0 ? colorCfg.text : "text-muted-foreground/50",
+                    )}
+                  />
+                  <span className="text-4xl font-bold tabular-nums leading-none">
+                    {goal.stats.current}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    day{goal.stats.current === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{streakCopy()}</p>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <Badge variant="secondary" className="gap-1 font-medium">
+                  <Trophy className="h-3 w-3" />
+                  Best {goal.stats.longest}d
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {goal.stats.total} total
+                </span>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Today toggle — disabled on unscheduled days */}
-          {restDay ? (
+          {/* Weekly: 7-dot this-week row (Sun start, matches heatmap) */}
+          {isWeekly ? <WeekDots checkInKeys={new Set(goal.checkIns.map((c) => c.date))} now={today} /> : null}
+
+          {/* Today toggle — disabled on rest days only */}
+          {cardState.kind === "rest" ? (
             <Button
               disabled
               variant="outline"
               className="mt-4 w-full border-dashed opacity-60"
               aria-disabled
             >
-              Rest day — back {nextDayShort}
+              Rest day — back {cardState.nextDayShort}
             </Button>
           ) : (
             <Button
@@ -293,5 +330,31 @@ export function GoalCard({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+/** 7-dot this-week row for weekly goals (Sun start, matching buildHeatmap). */
+function WeekDots({ checkInKeys, now }: { checkInKeys: Set<string>; now: Date }) {
+  const weekStart = startOfWeek(now, { weekStartsOn: 0 });
+  return (
+    <div className="mt-3 flex gap-1.5">
+      {[0, 1, 2, 3, 4, 5, 6].map((i) => {
+        const d = addDays(weekStart, i);
+        const key = toKey(d);
+        const done = checkInKeys.has(key);
+        const future = d > now;
+        return (
+          <span
+            key={i}
+            className={cn(
+              "h-2.5 w-2.5 rounded-full",
+              done ? "bg-foreground" : "bg-muted-foreground/25",
+              future && "opacity-40",
+            )}
+            aria-label={format(d, "EEE")}
+          />
+        );
+      })}
+    </div>
   );
 }
