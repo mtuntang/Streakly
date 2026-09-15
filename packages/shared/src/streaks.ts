@@ -31,6 +31,23 @@ export interface StreakStats {
   doneToday: boolean;
   /** The goal is still "alive" — the chain is not broken at its head. */
   active: boolean;
+  /** Unit the current streak is counted in for display. */
+  unit: StreakUnit;
+  /** Week-quota progress, present only for weekly cadence. */
+  week?: WeekProgress;
+}
+
+/** Unit the current streak is counted in for display. */
+export type StreakUnit = "day" | "week";
+
+/** Week-quota progress, present only for weekly cadence. */
+export interface WeekProgress {
+  /** Required check-ins per week. */
+  quota: number;
+  /** Check-ins made in the current week (Sunday start). */
+  done: number;
+  /** Quota already met this week. */
+  met: boolean;
 }
 
 /**
@@ -117,7 +134,7 @@ export function computeStreaks(
     }
   }
 
-  return { current, longest, total: sorted.length, doneToday, active };
+  return { current, longest, total: sorted.length, doneToday, active, unit: "day" };
 }
 
 /** Weekly (X per week) stats: the unit is a calendar week (Sunday start). */
@@ -178,7 +195,15 @@ function weeklyStats(
     prevWeekStart = ws;
   }
 
-  return { current, longest, total: sorted.length, doneToday, active: reachable };
+  return {
+    current,
+    longest,
+    total: sorted.length,
+    doneToday,
+    active: reachable,
+    unit: "week",
+    week: { quota, done: checksThisWeek, met: metThisWeek },
+  };
 }
 
 /**

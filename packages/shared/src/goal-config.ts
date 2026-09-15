@@ -146,6 +146,7 @@ export const GOAL_ICONS: string[] = [
 ];
 
 import type { Schedule } from "./schedule";
+import type { StreakStats } from "./streaks";
 
 export type GoalDTO = {
   id: string;
@@ -157,11 +158,5 @@ export type GoalDTO = {
   createdAt: string;
   updatedAt: string;
   checkIns: { date: string }[];
-  stats: {
-    current: number;
-    longest: number;
-    total: number;
-    doneToday: boolean;
-    active: boolean;
-  };
+  stats: StreakStats;
 };
