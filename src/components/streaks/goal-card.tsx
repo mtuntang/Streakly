@@ -257,15 +257,27 @@ export function GoalCard({
           {/* Weekly: 7-dot this-week row (Sun start, matches heatmap) */}
           {isWeekly ? <WeekDots checkInKeys={new Set(goal.checkIns.map((c) => c.date))} now={today} /> : null}
 
-          {/* Today toggle — disabled on rest days only */}
+          {/* Today toggle — on rest days: voluntary "did it anyway" action */}
           {cardState.kind === "rest" ? (
             <Button
-              disabled
+              onClick={() => onToggleToday(goal)}
               variant="outline"
-              className="mt-4 w-full border-dashed opacity-60"
-              aria-disabled
+              aria-pressed={doneToday}
+              className={cn(
+                "mt-4 w-full border-dashed",
+                doneToday
+                  ? cn(colorCfg.bg, "border-solid text-white hover:opacity-90")
+                  : "opacity-70 hover:opacity-100",
+              )}
             >
-              Rest day — back {cardState.nextDayShort}
+              {doneToday ? (
+                <>
+                  <Check className="mr-2 h-4 w-4" />
+                  Checked in on a rest day
+                </>
+              ) : (
+                `Did it anyway (rest day — back ${cardState.nextDayShort})`
+              )}
             </Button>
           ) : (
             <Button
