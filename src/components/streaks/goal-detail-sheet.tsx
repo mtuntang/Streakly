@@ -48,17 +48,35 @@ export function GoalDetailSheet({
 
   const recent = lastNDays(14).reverse();
 
-  const stats = [
-    {
-      label: "Current streak",
-      value: `${goal.stats.current}d`,
-      icon: Flame,
-      highlight: goal.stats.current > 0,
-    },
-    { label: "Longest streak", value: `${goal.stats.longest}d`, icon: Trophy },
-    { label: "Total check-ins", value: goal.stats.total, icon: CalendarCheck },
-    { label: "30-day rate", value: `${rate30}%`, icon: Target },
-  ];
+  const isWeekly = goal.stats.unit === "week";
+  const unitSuffix = isWeekly ? "w" : "d";
+  const stats = isWeekly
+    ? [
+        {
+          label: "Current streak",
+          value: `${goal.stats.current}${unitSuffix}`,
+          icon: Flame,
+          highlight: goal.stats.current > 0,
+        },
+        { label: "Longest streak", value: `${goal.stats.longest}${unitSuffix}`, icon: Trophy },
+        {
+          label: "This week",
+          value: `${goal.stats.week?.done ?? 0}/${goal.stats.week?.quota ?? 0}`,
+          icon: CalendarCheck,
+        },
+        { label: "30-day rate", value: `${rate30}%`, icon: Target },
+      ]
+    : [
+        {
+          label: "Current streak",
+          value: `${goal.stats.current}${unitSuffix}`,
+          icon: Flame,
+          highlight: goal.stats.current > 0,
+        },
+        { label: "Longest streak", value: `${goal.stats.longest}${unitSuffix}`, icon: Trophy },
+        { label: "Total check-ins", value: goal.stats.total, icon: CalendarCheck },
+        { label: "30-day rate", value: `${rate30}%`, icon: Target },
+      ];
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
