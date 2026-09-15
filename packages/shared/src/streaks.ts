@@ -79,7 +79,8 @@ export function computeStreaks(
 
   const scheduled = (d: Date) => isScheduledDay(schedule, d.getDay());
   const today = toKey(now);
-  const doneToday = scheduled(now) && set.has(today);
+  // doneToday = checked today, scheduled or not (voluntary rest-day check-ins count).
+  const doneToday = set.has(today);
 
   // --- current + active: walk backward over scheduled days from today. ---
   // head = the first scheduled day found. If it's checked, count the run of
