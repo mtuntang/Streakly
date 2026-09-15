@@ -30,6 +30,7 @@ import { getColor, type GoalDTO } from "@streakly/shared";
 import {
   cadenceLabel,
   cardCheckinState,
+  toggleButtonStyle,
 } from "@streakly/shared";
 
 import { GoalIcon } from "./goal-icon";
@@ -87,6 +88,7 @@ export function GoalCard({
   const doneToday = goal.stats.doneToday;
   const today = new Date();
   const cardState = cardCheckinState(goal.schedule, goal.stats, today);
+  const buttonStyle = toggleButtonStyle(cardState, doneToday);
   const isWeekly = goal.schedule?.type === "weekly";
 
   // Status message for daily/weekdays cards — honest states, never reuse empty-state copy.
@@ -268,11 +270,11 @@ export function GoalCard({
           {cardState.kind === "rest" ? (
             <Button
               onClick={() => onToggleToday(goal)}
-              variant={doneToday ? "default" : "outline"}
+              variant={buttonStyle.variant}
               aria-pressed={doneToday}
               className={cn(
                 "mt-4 w-full",
-                doneToday
+                buttonStyle.filled
                   ? cn(colorCfg.bg, "text-white hover:opacity-90")
                   : "border-dashed opacity-70 hover:opacity-100",
               )}
@@ -291,11 +293,11 @@ export function GoalCard({
               onClick={() => onToggleToday(goal)}
               className={cn(
                 "mt-4 w-full",
-                doneToday
+                buttonStyle.filled
                   ? cn(colorCfg.bg, "text-white hover:opacity-90")
                   : "border border-dashed border-border bg-transparent text-foreground hover:bg-accent",
               )}
-              variant={doneToday ? "default" : "outline"}
+              variant={buttonStyle.variant}
               aria-pressed={doneToday}
             >
               {doneToday ? (
