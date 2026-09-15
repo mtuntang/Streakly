@@ -318,7 +318,6 @@ export function GoalCard({
             <Heatmap
               dateKeys={goal.checkIns.map((c) => c.date)}
               color={goal.color}
-              schedule={goal.schedule}
               weeks={14}
               cellSize={11}
               showMonths={false}
