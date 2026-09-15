@@ -5,9 +5,7 @@ import {
   buildHeatmap,
   prettyDate,
   toKey,
-  isScheduledDay,
   type HeatmapCell,
-  type Schedule,
 } from "@streakly/shared";
 import { getColor } from "@streakly/shared";
 import { cn } from "@/lib/utils";
@@ -19,8 +17,6 @@ interface HeatmapProps {
   cellSize?: number;
   gap?: number;
   showMonths?: boolean;
-  /** Optional goal cadence — unscheduled days render dimmed. */
-  schedule?: Schedule | null;
   className?: string;
 }
 
@@ -46,7 +42,6 @@ export function Heatmap({
   cellSize = 13,
   gap = 3,
   showMonths = true,
-  schedule = null,
   className,
 }: HeatmapProps) {
   const grid = React.useMemo(
@@ -106,8 +101,6 @@ export function Heatmap({
               const isToday = cell.key === today;
               const isFuture = cell.inFuture;
               const on = cell.count > 0;
-              const unscheduled =
-                !on && !isScheduledDay(schedule, cell.date.getDay());
               return (
                 <div
                   key={cell.key}
@@ -120,8 +113,7 @@ export function Heatmap({
                       ? "bg-transparent"
                       : on
                         ? colorCfg.cellOn
-                        : "bg-muted/60 dark:bg-muted/40",
-                    unscheduled && "opacity-25",
+                        : "bg-foreground/15 dark:bg-muted/40",
                     isToday && "ring-2 ring-offset-1 ring-offset-background ring-foreground/40",
                   )}
                   style={{ width: cellPx, height: cellPx }}
@@ -133,12 +125,6 @@ export function Heatmap({
         ))}
       </div>
       <div className="mt-2 flex h-4 items-center gap-1.5 text-[10px] text-muted-foreground">
-        <span>Less</span>
-        <div className={cn("h-2.5 w-2.5 rounded-[2px] bg-muted/60")} />
-        <div className={cn("h-2.5 w-2.5 rounded-[2px]", colorCfg.cellOn, "opacity-40")} />
-        <div className={cn("h-2.5 w-2.5 rounded-[2px]", colorCfg.cellOn, "opacity-70")} />
-        <div className={cn("h-2.5 w-2.5 rounded-[2px]", colorCfg.cellOn)} />
-        <span>More</span>
         <span className="ml-auto hidden sm:inline">
           {hover
             ? `${prettyDate(hover.key)}${hover.count > 0 ? " — done" : " — not done"}`

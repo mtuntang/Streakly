@@ -52,5 +52,33 @@ export function cardCheckinState(
   return { kind: "checkin", brokenStreak: broken, urgency: "normal" };
 }
 
+/** How the card's check-in button should render. */
+export interface ToggleButtonStyle {
+  /** shadcn Button variant: filled when checked, outlined otherwise. */
+  variant: "default" | "outline";
+  /** Dashed border only for the unchecked rest-day invitation. */
+  dashed: boolean;
+  /** Filled with the goal color (the checked state). */
+  filled: boolean;
+}
+
+/**
+ * Button render state for a goal card, derived from the check-in state.
+ * Single source of truth so dark/light and cadence variants stay in sync —
+ * the rest-day checked state MUST render filled (variant "default"),
+ * same as the daily toggle (dark-mode bug fixed in PR #9).
+ */
+export function toggleButtonStyle(
+  state: CardCheckinState,
+  doneToday: boolean,
+): ToggleButtonStyle {
+  if (state.kind === "rest") {
+    if (doneToday) return { variant: "default", dashed: false, filled: true };
+    return { variant: "outline", dashed: true, filled: false };
+  }
+  if (doneToday) return { variant: "default", dashed: false, filled: true };
+  return { variant: "outline", dashed: true, filled: false };
+}
+
 // Re-export for convenience so consumers import from one module.
 export { toKey, fromKey };

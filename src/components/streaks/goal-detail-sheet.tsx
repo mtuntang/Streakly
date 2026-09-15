@@ -162,7 +162,6 @@ export function GoalDetailSheet({
               <Heatmap
                 dateKeys={goal.checkIns.map((c) => c.date)}
                 color={goal.color}
-                schedule={goal.schedule}
                 weeks={26}
                 cellSize={13}
                 showMonths
