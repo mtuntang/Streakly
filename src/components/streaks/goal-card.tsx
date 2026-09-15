@@ -26,12 +26,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { getColor, toKey, type GoalDTO } from "@streakly/shared";
+import { getColor, type GoalDTO } from "@streakly/shared";
 import {
   cadenceLabel,
   cardCheckinState,
 } from "@streakly/shared";
-import { startOfWeek, addDays, format } from "date-fns";
+
 import { GoalIcon } from "./goal-icon";
 import { Heatmap } from "./heatmap";
 import { cn } from "@/lib/utils";
@@ -254,8 +254,15 @@ export function GoalCard({
             </div>
           )}
 
-          {/* Weekly: 7-dot this-week row (Sun start, matches heatmap) */}
-          {isWeekly ? <WeekDots checkInKeys={new Set(goal.checkIns.map((c) => c.date))} now={today} /> : null}
+          {/* Weekly: quota progress dots — one dot per required check-in */}
+          {isWeekly ? (
+            <WeekDots
+              done={goal.stats.week?.done ?? 0}
+              quota={goal.stats.week?.quota ?? 0}
+              dotOn={colorCfg.bg}
+              met={goal.stats.week?.met ?? false}
+            />
+          ) : null}
 
           {/* Today toggle — on rest days: voluntary "did it anyway" action */}
           {cardState.kind === "rest" ? (
@@ -346,27 +353,27 @@ export function GoalCard({
 }
 
 /** 7-dot this-week row for weekly goals (Sun start, matching buildHeatmap). */
-function WeekDots({ checkInKeys, now }: { checkInKeys: Set<string>; now: Date }) {
-  const weekStart = startOfWeek(now, { weekStartsOn: 0 });
+/** Quota progress dots for weekly goals: one dot per required check-in. */
+function WeekDots({
+  done,
+  quota,
+  dotOn,
+  met,
+}: {
+  done: number;
+  quota: number;
+  dotOn: string;
+  met: boolean;
+}) {
   return (
-    <div className="mt-3 flex gap-1.5">
-      {[0, 1, 2, 3, 4, 5, 6].map((i) => {
-        const d = addDays(weekStart, i);
-        const key = toKey(d);
-        const done = checkInKeys.has(key);
-        const future = d > now;
-        return (
-          <span
-            key={i}
-            className={cn(
-              "h-2.5 w-2.5 rounded-full",
-              done ? "bg-foreground" : "bg-muted-foreground/25",
-              future && "opacity-40",
-            )}
-            aria-label={format(d, "EEE")}
-          />
-        );
-      })}
+    <div className="mt-3 flex gap-1.5" aria-label={`${done} of ${quota} check-ins this week`}>
+      {Array.from({ length: quota }, (_, i) => (
+        <span
+          key={i}
+          className={cn("h-2.5 w-2.5 rounded-full", i < done ? dotOn : "bg-border")}
+          aria-current={i === done && !met ? "step" : undefined}
+        />
+      ))}
     </div>
   );
 }
