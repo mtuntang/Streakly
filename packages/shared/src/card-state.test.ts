@@ -20,9 +20,7 @@ describe("cardCheckinState", () => {
       stats({ week: { quota: 4, done: 2, met: false } }),
       new Date("2026-09-12T10:00:00"), // Saturday
     );
-    expect(s.kind).toBe("checkin");
-    expect(s.brokenStreak).toBe(false);
-    if (s.kind === "checkin") expect(s.urgency).toBe("quota-at-risk");
+    expect(s).toMatchObject({ kind: "checkin", brokenStreak: false, urgency: "quota-at-risk" });
   });
 
   it("weekly: quota met → no urgency", () => {
@@ -53,9 +51,7 @@ describe("cardCheckinState", () => {
       stats({}),
       new Date("2026-09-07T10:00:00"), // Monday
     );
-    expect(s.kind).toBe("checkin");
-    expect(s.brokenStreak).toBe(false);
-    if (s.kind === "checkin") expect(s.urgency).toBe("normal");
+    expect(s).toMatchObject({ kind: "checkin", brokenStreak: false, urgency: "normal" });
   });
 
   it("weekdays: rest day reports next scheduled day short name", () => {
@@ -75,13 +71,11 @@ describe("cardCheckinState", () => {
       stats({ current: 0, active: false, total: 5 }),
       new Date("2026-09-10T10:00:00"),
     );
-    expect(s.kind).toBe("checkin");
-    expect(s.brokenStreak).toBe(true);
+    expect(s).toMatchObject({ kind: "checkin", brokenStreak: true, urgency: "normal" });
   });
 
   it("daily: not broken for a fresh goal (no history)", () => {
     const s = cardCheckinState(null, stats({ total: 0 }), new Date("2026-09-10T10:00:00"));
-    expect(s.kind).toBe("checkin");
-    expect(s.brokenStreak).toBe(false);
+    expect(s).toMatchObject({ kind: "checkin", brokenStreak: false, urgency: "normal" });
   });
 });
