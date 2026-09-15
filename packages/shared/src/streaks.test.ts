@@ -145,6 +145,44 @@ describe("weekly stats extras", () => {
   });
 });
 
+describe("rest-day check-ins (voluntary)", () => {
+  it("doneToday is true when checked on an unscheduled day", () => {
+    // Sat 9-12 is a rest day for Mon/Wed/Fri
+    const s = computeStreaks(["2026-09-12"], new Date("2026-09-12T12:00:00"), WD);
+    expect(s.doneToday).toBe(true);
+  });
+  it("a rest-day check-in does NOT grow the streak", () => {
+    // Fri 9-11 checked (streak 1), voluntary Sat 9-12 check-in adds nothing
+    const s = computeStreaks(
+      ["2026-09-11", "2026-09-12"],
+      new Date("2026-09-12T12:00:00"),
+      WD,
+    );
+    expect(s.current).toBe(1);
+    expect(s.longest).toBe(1);
+    expect(s.total).toBe(2);
+  });
+  it("a rest-day check-in does not keep a dead chain alive", () => {
+    // Last scheduled day Mon 9-7 checked, Sat 9-12 voluntary, today Sat →
+    // Fri (scheduled) was missed, so the chain is dead regardless.
+    const s = computeStreaks(
+      ["2026-09-07", "2026-09-12"],
+      new Date("2026-09-12T12:00:00"),
+      WD,
+    );
+    expect(s.active).toBe(false);
+    expect(s.current).toBe(0);
+  });
+  it("total counts voluntary check-ins", () => {
+    const s = computeStreaks(
+      ["2026-09-11", "2026-09-12"],
+      new Date("2026-09-12T12:00:00"),
+      WD,
+    );
+    expect(s.total).toBe(2);
+  });
+});
+
 describe("stats shape lock (daily/weekdays)", () => {
   it("returns unit 'day' and no week field for daily and weekdays schedules", () => {
     const daily = computeStreaks(["2026-09-08"], NOW, null);
