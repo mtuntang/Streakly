@@ -268,13 +268,13 @@ export function GoalCard({
           {cardState.kind === "rest" ? (
             <Button
               onClick={() => onToggleToday(goal)}
-              variant="outline"
+              variant={doneToday ? "default" : "outline"}
               aria-pressed={doneToday}
               className={cn(
-                "mt-4 w-full border-dashed",
+                "mt-4 w-full",
                 doneToday
-                  ? cn(colorCfg.bg, "border-solid text-white hover:opacity-90")
-                  : "opacity-70 hover:opacity-100",
+                  ? cn(colorCfg.bg, "text-white hover:opacity-90")
+                  : "border-dashed opacity-70 hover:opacity-100",
               )}
             >
               {doneToday ? (
@@ -283,7 +283,7 @@ export function GoalCard({
                   Checked in on a rest day
                 </>
               ) : (
-                `Did it anyway (rest day — back ${cardState.nextDayShort})`
+                `Do it anyway (Rest Day - back ${cardState.nextDayShort})`
               )}
             </Button>
           ) : (
