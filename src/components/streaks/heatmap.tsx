@@ -133,12 +133,6 @@ export function Heatmap({
         ))}
       </div>
       <div className="mt-2 flex h-4 items-center gap-1.5 text-[10px] text-muted-foreground">
-        <span>Less</span>
-        <div className={cn("h-2.5 w-2.5 rounded-[2px] bg-foreground/15")} />
-        <div className={cn("h-2.5 w-2.5 rounded-[2px]", colorCfg.cellOn, "opacity-40")} />
-        <div className={cn("h-2.5 w-2.5 rounded-[2px]", colorCfg.cellOn, "opacity-70")} />
-        <div className={cn("h-2.5 w-2.5 rounded-[2px]", colorCfg.cellOn)} />
-        <span>More</span>
         <span className="ml-auto hidden sm:inline">
           {hover
             ? `${prettyDate(hover.key)}${hover.count > 0 ? " — done" : " — not done"}`
