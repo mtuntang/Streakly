@@ -18,11 +18,15 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { getColor, type GoalDTO } from "@streakly/shared";
-import { cadenceLabel } from "@streakly/shared";
+import {
+  cadenceLabel,
+  getColor,
+  lastNDays,
+  prettyDate,
+  type GoalDTO,
+} from "@streakly/shared";
 import { GoalIcon } from "./goal-icon";
 import { Heatmap } from "./heatmap";
-import { lastNDays, prettyDate } from "@streakly/shared";
 import { cn } from "@/lib/utils";
 
 interface GoalDetailSheetProps {

@@ -15,15 +15,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { GripHorizontal } from "lucide-react";
-import { GOAL_COLORS } from "@streakly/shared";
-import { GOAL_ICONS } from "@streakly/shared";
 import {
+  GOAL_COLORS,
+  GOAL_ICONS,
   ScheduleSchema,
   weekdayShort,
+  type GoalDTO,
   type Schedule,
 } from "@streakly/shared";
 import { GoalIcon } from "./goal-icon";
-import type { GoalDTO } from "@streakly/shared";
 import { cn } from "@/lib/utils";
 
 interface GoalFormDialogProps {
@@ -241,7 +241,7 @@ export function GoalFormDialog({
                       : "text-muted-foreground hover:bg-accent/50",
                   )}
                 >
-                  {m === "daily" ? "Every day" : m === "weekdays" ? "Specific days" : "X per week"}
+                  {label}
                 </button>
               ))}
             </div>

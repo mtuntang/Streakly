@@ -22,9 +22,8 @@ import { GoalCard } from "./goal-card";
 import { GoalFormDialog } from "./goal-form-dialog";
 import { GoalDetailSheet } from "./goal-detail-sheet";
 import { EmptyState } from "./empty-state";
-import type { GoalDTO } from "@streakly/shared";
+import { todayKey, type GoalDTO } from "@streakly/shared";
 import { useToast } from "@/hooks/use-toast";
-import { todayKey } from "@streakly/shared";
 
 export function StreaksApp() {
   const { toast } = useToast();
