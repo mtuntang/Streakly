@@ -1,43 +1,118 @@
-import { Hono } from "hono";
-import { db } from "../db";
+import { Hono, type Context } from "hono";
+import { z } from "zod";
 import {
-  computeStreaks,
-  normalizeSchedule,
-  type GoalDTO,
+  CheckInBodySchema,
+  CreateGoalSchema,
+  UpdateGoalSchema,
+  fromKey,
+  toKey,
 } from "@streakly/shared";
+import {
+  createGoal,
+  deleteGoal,
+  goalExists,
+  loadGoal,
+  loadGoals,
+  removeCheckIn,
+  reorderGoals,
+  toggleCheckIn,
+  updateGoal,
+} from "../lib/goals";
+import { badRequest, notFound, parseBody } from "../lib/http";
 
-/**
- * Loads all goals with computed streak stats.
- * NOTE: temporarily mirrors web's loadGoals() (src/lib/goals-api.ts);
- * once the web app consumes this API, the web copy is deleted and this
- * becomes the single implementation.
- */
-export async function loadGoals(): Promise<GoalDTO[]> {
-  const goals = await db.goal.findMany({
-    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-    include: { checkIns: { select: { date: true } } },
-  });
+// ── Handlers ────────────────────────────────────────────────────────────
+// Validation errors throw HttpError(400) via parseBody; missing goals throw
+// HttpError(404) from the lib functions. app.onError (index.ts) turns those
+// into JSON responses and logs unexpected errors as 500s.
 
-  return goals.map((g) => {
-    const dates = g.checkIns.map((c) => c.date);
-    const schedule = normalizeSchedule(g.schedule);
-    const stats = computeStreaks(dates, new Date(), schedule);
-    return {
-      id: g.id,
-      name: g.name,
-      description: g.description,
-      color: g.color,
-      icon: g.icon,
-      schedule,
-      createdAt: g.createdAt.toISOString(),
-      updatedAt: g.updatedAt.toISOString(),
-      checkIns: g.checkIns,
-      stats,
-    };
-  });
+/** GET /goals — list all goals with computed streak stats. */
+async function listGoals(c: Context) {
+  return c.json(await loadGoals());
 }
 
-export const goalsRoute = new Hono().get("/", async (c) => {
-  const goals = await loadGoals();
-  return c.json(goals);
-});
+/** POST /goals — create a goal. */
+async function createGoalRoute(c: Context) {
+  const input = await parseBody(c, CreateGoalSchema);
+  return c.json(await createGoal(input), 201);
+}
+
+/** PATCH /goals/reorder — body { ids: string[] }; each id's order = its index. */
+async function reorderGoalsRoute(c: Context) {
+  const { ids } = await parseBody(
+    c,
+    z.object({ ids: z.array(z.string()).min(1) }),
+  );
+  await reorderGoals(ids);
+  return c.json(await loadGoals());
+}
+
+/** GET /goals/:id — one goal. */
+async function getGoalRoute(c: Context) {
+  const goal = await loadGoal(c.req.param("id")!);
+  if (!goal) throw notFound();
+  return c.json(goal);
+}
+
+/** PATCH /goals/:id — update goal fields, returns the updated DTO. */
+async function updateGoalRoute(c: Context) {
+  const id = c.req.param("id")!;
+  const input = await parseBody(c, UpdateGoalSchema);
+  await updateGoal(id, input);
+  return c.json(await loadGoal(id));
+}
+
+/** DELETE /goals/:id — permanently remove a goal and its check-ins. */
+async function deleteGoalRoute(c: Context) {
+  await deleteGoal(c.req.param("id")!);
+  return c.json({ ok: true });
+}
+
+/** POST /goals/:id/checkins — toggle a check-in (defaults to today). */
+async function toggleCheckInRoute(c: Context) {
+  const id = c.req.param("id")!;
+  if (!(await goalExists(id))) throw notFound();
+
+  const { date } = await parseBody(c, CheckInBodySchema);
+  const dateKey = date ?? toKey(new Date());
+  try {
+    fromKey(dateKey);
+  } catch {
+    throw badRequest("Invalid date");
+  }
+
+  const checked = await toggleCheckIn(id, dateKey);
+  return c.json({ checked, goal: await loadGoal(id) });
+}
+
+/** DELETE /goals/:id/checkins — remove a check-in (?date=YYYY-MM-DD, defaults to today). */
+async function removeCheckInRoute(c: Context) {
+  const id = c.req.param("id")!;
+  if (!(await goalExists(id))) throw notFound();
+
+  const date = c.req.query("date") ?? toKey(new Date());
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw badRequest("Invalid date format. Use YYYY-MM-DD.");
+  }
+
+  await removeCheckIn(id, date);
+  return c.json({ checked: false, goal: await loadGoal(id) });
+}
+
+// ── Route table ─────────────────────────────────────────────────────────
+// Grouped by resource:
+//   goalsCollection — scoped to the whole set
+//   goalResource    — scoped to one goal id (mounted under the collection,
+//                     so /reorder is guaranteed to match before /:id)
+const goalsCollection = new Hono()
+  .get("/", listGoals)
+  .post("/", createGoalRoute)
+  .patch("/reorder", reorderGoalsRoute);
+
+const goalResource = new Hono()
+  .get("/:id", getGoalRoute)
+  .patch("/:id", updateGoalRoute)
+  .delete("/:id", deleteGoalRoute)
+  .post("/:id/checkins", toggleCheckInRoute)
+  .delete("/:id/checkins", removeCheckInRoute);
+
+export default goalsCollection.route("/", goalResource);

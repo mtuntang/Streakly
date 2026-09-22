@@ -119,6 +119,10 @@ export const COLOR_MAP: Record<string, ColorConfig> = Object.fromEntries(
   GOAL_COLORS.map((c) => [c.key, c]),
 );
 
+/** Defaults applied when a create request omits color / icon. */
+export const DEFAULT_COLOR = "emerald";
+export const DEFAULT_ICON = "Flame";
+
 export function getColor(key: string): ColorConfig {
   return COLOR_MAP[key] ?? GOAL_COLORS[0];
 }
