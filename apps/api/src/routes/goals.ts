@@ -21,8 +21,10 @@ import {
 const jsonError = (c: Context, message: string, status: 400 | 404 | 500) =>
   c.json({ error: message }, status);
 
-// Declare /reorder BEFORE /:id so the static path wins.
-const goalsRoute = new Hono()
+// Route table, grouped by resource:
+//   collection routes (list / create / reorder) are declared first;
+//   the per-goal group (/:id, /:id/checkins) is mounted after.
+const goalsCollection = new Hono()
   /** List goals. */
   .get("/", async (c) => c.json(await loadGoals()))
   /** Create a goal. */
@@ -55,7 +57,10 @@ const goalsRoute = new Hono()
       console.error("Failed to reorder goals:", error);
       return jsonError(c, "Failed to reorder goals.", 500);
     }
-  })
+  });
+
+/** Per-goal resource group: everything scoped to one goal id. */
+const goalResource = new Hono()
   /** Get one goal. */
   .get("/:id", async (c) => {
     const goal = await loadGoal(c.req.param("id"));
@@ -143,4 +148,6 @@ const goalsRoute = new Hono()
     }
   });
 
-export default goalsRoute;
+// Mount the per-goal group onto the collection. Collection routes are
+// already registered, so /reorder is guaranteed to match before /:id.
+export default goalsCollection.route("/", goalResource);
