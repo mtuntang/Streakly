@@ -6,7 +6,12 @@ import {
   type GoalDTO,
 } from "@streakly/shared";
 
-/** Mirrors src/lib/goals-api.ts loadGoals() — deduplicated in PR 2. */
+/**
+ * Loads all goals with computed streak stats.
+ * NOTE: temporarily mirrors web's loadGoals() (src/lib/goals-api.ts);
+ * once the web app consumes this API, the web copy is deleted and this
+ * becomes the single implementation.
+ */
 export async function loadGoals(): Promise<GoalDTO[]> {
   const goals = await db.goal.findMany({
     orderBy: [{ order: "asc" }, { createdAt: "asc" }],
