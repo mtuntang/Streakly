@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { goalsRoute } from "./routes/goals";
+import goalsRoute from "./routes/goals";
 
 const app = new Hono()
   .basePath("/api")
