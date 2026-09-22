@@ -1,0 +1,19 @@
+{
+  "name": "@streakly/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot --env-file=../../.env src/index.ts",
+    "start": "bun run --env-file=../../.env src/index.ts",
+    "test": "bun test --env-file=../../.env"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.11.1",
+    "@streakly/shared": "workspace:*",
+    "hono": "^4.9.12"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.0"
+  }
+}
