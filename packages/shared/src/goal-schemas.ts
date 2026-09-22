@@ -16,5 +16,13 @@ export const CreateGoalSchema = z.object({
 /** Contract for updating a goal — every field optional. */
 export const UpdateGoalSchema = CreateGoalSchema.partial();
 
+/** Contract for check-in requests — date optional, defaults to today server-side. */
+export const CheckInBodySchema = z.object({
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD")
+    .optional(),
+});
+
 export type CreateGoalInput = z.infer<typeof CreateGoalSchema>;
 export type UpdateGoalInput = z.infer<typeof UpdateGoalSchema>;

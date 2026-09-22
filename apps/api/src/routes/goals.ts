@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import {
+  CheckInBodySchema,
   CreateGoalSchema,
   UpdateGoalSchema,
   fromKey,
@@ -17,137 +18,101 @@ import {
   toggleCheckIn,
   updateGoal,
 } from "../lib/goals";
+import { badRequest, notFound, parseBody } from "../lib/http";
 
-const jsonError = (c: Context, message: string, status: 400 | 404 | 500) =>
-  c.json({ error: message }, status);
+// ── Handlers ────────────────────────────────────────────────────────────
+// Validation errors throw HttpError(400) via parseBody; missing goals throw
+// HttpError(404) from the lib functions. app.onError (index.ts) turns those
+// into JSON responses and logs unexpected errors as 500s.
 
-// Route table, grouped by resource:
-//   collection routes (list / create / reorder) are declared first;
-//   the per-goal group (/:id, /:id/checkins) is mounted after.
+/** GET /goals — list all goals with computed streak stats. */
+async function listGoals(c: Context) {
+  return c.json(await loadGoals());
+}
+
+/** POST /goals — create a goal. */
+async function createGoalRoute(c: Context) {
+  const input = await parseBody(c, CreateGoalSchema);
+  return c.json(await createGoal(input), 201);
+}
+
+/** PATCH /goals/reorder — body { ids: string[] }; each id's order = its index. */
+async function reorderGoalsRoute(c: Context) {
+  const { ids } = await parseBody(
+    c,
+    z.object({ ids: z.array(z.string()).min(1) }),
+  );
+  await reorderGoals(ids);
+  return c.json(await loadGoals());
+}
+
+/** GET /goals/:id — one goal. */
+async function getGoalRoute(c: Context) {
+  const goal = await loadGoal(c.req.param("id")!);
+  if (!goal) throw notFound();
+  return c.json(goal);
+}
+
+/** PATCH /goals/:id — update goal fields, returns the updated DTO. */
+async function updateGoalRoute(c: Context) {
+  const id = c.req.param("id")!;
+  const input = await parseBody(c, UpdateGoalSchema);
+  await updateGoal(id, input);
+  return c.json(await loadGoal(id));
+}
+
+/** DELETE /goals/:id — permanently remove a goal and its check-ins. */
+async function deleteGoalRoute(c: Context) {
+  await deleteGoal(c.req.param("id")!);
+  return c.json({ ok: true });
+}
+
+/** POST /goals/:id/checkins — toggle a check-in (defaults to today). */
+async function toggleCheckInRoute(c: Context) {
+  const id = c.req.param("id")!;
+  if (!(await goalExists(id))) throw notFound();
+
+  const { date } = await parseBody(c, CheckInBodySchema);
+  const dateKey = date ?? toKey(new Date());
+  try {
+    fromKey(dateKey);
+  } catch {
+    throw badRequest("Invalid date");
+  }
+
+  const checked = await toggleCheckIn(id, dateKey);
+  return c.json({ checked, goal: await loadGoal(id) });
+}
+
+/** DELETE /goals/:id/checkins — remove a check-in (?date=YYYY-MM-DD, defaults to today). */
+async function removeCheckInRoute(c: Context) {
+  const id = c.req.param("id")!;
+  if (!(await goalExists(id))) throw notFound();
+
+  const date = c.req.query("date") ?? toKey(new Date());
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw badRequest("Invalid date format. Use YYYY-MM-DD.");
+  }
+
+  await removeCheckIn(id, date);
+  return c.json({ checked: false, goal: await loadGoal(id) });
+}
+
+// ── Route table ─────────────────────────────────────────────────────────
+// Grouped by resource:
+//   goalsCollection — scoped to the whole set
+//   goalResource    — scoped to one goal id (mounted under the collection,
+//                     so /reorder is guaranteed to match before /:id)
 const goalsCollection = new Hono()
-  /** List goals. */
-  .get("/", async (c) => c.json(await loadGoals()))
-  /** Create a goal. */
-  .post("/", async (c) => {
-    try {
-      const json = await c.req.json().catch(() => null);
-      if (!json) return jsonError(c, "Invalid JSON body", 400);
-      const parsed = CreateGoalSchema.safeParse(json);
-      if (!parsed.success) {
-        return jsonError(c, parsed.error.issues[0]?.message ?? "Invalid request", 400);
-      }
-      return c.json(await createGoal(parsed.data), 201);
-    } catch (error) {
-      console.error("Failed to create goal:", error);
-      return jsonError(c, "Failed to create goal. Please try again.", 500);
-    }
-  })
-  /** Reorder goals: body { ids: string[] }, each id's order = its index. */
-  .patch("/reorder", async (c) => {
-    try {
-      const json = await c.req.json().catch(() => null);
-      if (!json) return jsonError(c, "Invalid JSON body", 400);
-      const parsed = z.object({ ids: z.array(z.string()).min(1) }).safeParse(json);
-      if (!parsed.success) {
-        return jsonError(c, parsed.error.issues[0]?.message ?? "Invalid request", 400);
-      }
-      await reorderGoals(parsed.data.ids);
-      return c.json(await loadGoals());
-    } catch (error) {
-      console.error("Failed to reorder goals:", error);
-      return jsonError(c, "Failed to reorder goals.", 500);
-    }
-  });
+  .get("/", listGoals)
+  .post("/", createGoalRoute)
+  .patch("/reorder", reorderGoalsRoute);
 
-/** Per-goal resource group: everything scoped to one goal id. */
 const goalResource = new Hono()
-  /** Get one goal. */
-  .get("/:id", async (c) => {
-    const goal = await loadGoal(c.req.param("id"));
-    if (!goal) return jsonError(c, "Goal not found", 404);
-    return c.json(goal);
-  })
-  /** Update a goal. */
-  .patch("/:id", async (c) => {
-    try {
-      const id = c.req.param("id");
-      const json = await c.req.json().catch(() => null);
-      if (!json) return jsonError(c, "Invalid JSON body", 400);
-      const parsed = UpdateGoalSchema.safeParse(json);
-      if (!parsed.success) {
-        return jsonError(c, parsed.error.issues[0]?.message ?? "Invalid request", 400);
-      }
-      if (!(await goalExists(id))) return jsonError(c, "Goal not found", 404);
-      await updateGoal(id, parsed.data);
-      return c.json(await loadGoal(id));
-    } catch (error) {
-      console.error("Failed to update goal:", error);
-      return jsonError(c, "Failed to update goal.", 500);
-    }
-  })
-  /** Delete a goal. */
-  .delete("/:id", async (c) => {
-    try {
-      const id = c.req.param("id");
-      if (!(await goalExists(id))) return jsonError(c, "Goal not found", 404);
-      await deleteGoal(id);
-      return c.json({ ok: true });
-    } catch (error) {
-      console.error("Failed to delete goal:", error);
-      return jsonError(c, "Failed to delete goal.", 500);
-    }
-  })
-  /**
-   * Toggle a check-in for a date (defaults to today). Voluntary rest-day
-   * check-ins are allowed (count toward total, not streaks); un-checking is
-   * always allowed.
-   */
-  .post("/:id/checkins", async (c) => {
-    try {
-      const id = c.req.param("id");
-      if (!(await goalExists(id))) return jsonError(c, "Goal not found", 404);
+  .get("/:id", getGoalRoute)
+  .patch("/:id", updateGoalRoute)
+  .delete("/:id", deleteGoalRoute)
+  .post("/:id/checkins", toggleCheckInRoute)
+  .delete("/:id/checkins", removeCheckInRoute);
 
-      const body = await c.req.json().catch(() => ({}));
-      const parsed = z
-        .object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD").optional() })
-        .safeParse(body);
-      if (!parsed.success) {
-        return jsonError(c, parsed.error.issues[0]?.message ?? "Invalid request", 400);
-      }
-
-      const dateKey = parsed.data.date ?? toKey(new Date());
-      try {
-        fromKey(dateKey);
-      } catch {
-        return jsonError(c, "Invalid date", 400);
-      }
-
-      const checked = await toggleCheckIn(id, dateKey);
-      return c.json({ checked, goal: await loadGoal(id) });
-    } catch (error) {
-      console.error("Failed to toggle check-in:", error);
-      return jsonError(c, "Failed to update check-in. Please try again.", 500);
-    }
-  })
-  /** Explicitly remove a check-in (?date=YYYY-MM-DD, defaults to today). */
-  .delete("/:id/checkins", async (c) => {
-    try {
-      const id = c.req.param("id");
-      if (!(await goalExists(id))) return jsonError(c, "Goal not found", 404);
-
-      const date = c.req.query("date") ?? toKey(new Date());
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        return jsonError(c, "Invalid date format. Use YYYY-MM-DD.", 400);
-      }
-
-      await removeCheckIn(id, date);
-      return c.json({ checked: false, goal: await loadGoal(id) });
-    } catch (error) {
-      console.error("Failed to delete check-in:", error);
-      return jsonError(c, "Failed to remove check-in.", 500);
-    }
-  });
-
-// Mount the per-goal group onto the collection. Collection routes are
-// already registered, so /reorder is guaranteed to match before /:id.
 export default goalsCollection.route("/", goalResource);

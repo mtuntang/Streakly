@@ -3,15 +3,27 @@ import { db } from "../db";
 import {
   computeStreaks,
   normalizeSchedule,
+  DEFAULT_COLOR,
+  DEFAULT_ICON,
   GOAL_ICONS,
   type GoalDTO,
   type CreateGoalInput,
   type UpdateGoalInput,
 } from "@streakly/shared";
+import { notFound } from "./http";
 
 type GoalRow = Prisma.GoalGetPayload<{
   include: { checkIns: { select: { date: true } } };
 }>;
+
+/** Maps a Prisma error to an HttpError where the message is user-meaningful. */
+function translatePrismaError(error: unknown): never {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    // P2025: "An operation failed because it depends on one or more records that were required but was not found."
+    if (error.code === "P2025") throw notFound();
+  }
+  throw error;
+}
 
 /** Maps a Prisma goal row (with check-ins) to the wire contract. */
 export function toGoalDTO(goal: GoalRow): GoalDTO {
@@ -55,8 +67,9 @@ export async function goalExists(id: string): Promise<boolean> {
 }
 
 export async function createGoal(input: CreateGoalInput): Promise<GoalDTO> {
-  const color = input.color ?? "emerald";
-  const icon = input.icon && GOAL_ICONS.includes(input.icon) ? input.icon : "Flame";
+  const color = input.color ?? DEFAULT_COLOR;
+  const icon =
+    input.icon && GOAL_ICONS.includes(input.icon) ? input.icon : DEFAULT_ICON;
 
   // Place new goals at the end of the current order.
   const maxOrder = await db.goal.aggregate({ _max: { order: true } });
@@ -81,20 +94,33 @@ export async function createGoal(input: CreateGoalInput): Promise<GoalDTO> {
   return created;
 }
 
+/** Updates the provided fields; throws HttpError(404) if the goal does not exist. */
 export async function updateGoal(id: string, input: UpdateGoalInput): Promise<void> {
-  const update: Record<string, unknown> = {};
+  const update: Prisma.GoalUpdateInput = {};
   if (input.name !== undefined) update.name = input.name;
   if (input.description !== undefined) update.description = input.description;
   if (input.color !== undefined) update.color = input.color;
   if (input.icon !== undefined && GOAL_ICONS.includes(input.icon)) {
     update.icon = input.icon;
   }
-  if (input.schedule !== undefined) update.schedule = input.schedule;
-  await db.goal.update({ where: { id }, data: update });
+  if (input.schedule !== undefined) {
+    update.schedule =
+      input.schedule === null ? Prisma.JsonNull : input.schedule;
+  }
+  try {
+    await db.goal.update({ where: { id }, data: update });
+  } catch (error) {
+    translatePrismaError(error);
+  }
 }
 
+/** Deletes a goal and its check-ins; throws HttpError(404) if it does not exist. */
 export async function deleteGoal(id: string): Promise<void> {
-  await db.goal.delete({ where: { id } });
+  try {
+    await db.goal.delete({ where: { id } });
+  } catch (error) {
+    translatePrismaError(error);
+  }
 }
 
 export async function reorderGoals(ids: string[]): Promise<void> {
@@ -105,16 +131,24 @@ export async function reorderGoals(ids: string[]): Promise<void> {
   );
 }
 
+/**
+ * Toggles a check-in for one goal+date. Returns true when the check-in was
+ * created, false when it was removed. Race-safe: two concurrent toggles on
+ * a missing check-in resolve to one create (the loser hits the unique
+ * constraint and removes instead of erroring).
+ */
 export async function toggleCheckIn(id: string, dateKey: string): Promise<boolean> {
-  const existing = await db.checkIn.findUnique({
-    where: { goalId_date: { goalId: id, date: dateKey } },
-  });
-  if (existing) {
-    await db.checkIn.delete({ where: { id: existing.id } });
-    return false;
+  try {
+    await db.checkIn.create({ data: { goalId: id, date: dateKey } });
+    return true;
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      // Already checked in for that date → this toggle means "un-check".
+      await db.checkIn.deleteMany({ where: { goalId: id, date: dateKey } });
+      return false;
+    }
+    translatePrismaError(error);
   }
-  await db.checkIn.create({ data: { goalId: id, date: dateKey } });
-  return true;
 }
 
 export async function removeCheckIn(id: string, dateKey: string): Promise<void> {
