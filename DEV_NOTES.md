@@ -1,22 +1,16 @@
 # Streakly — Dev Notes
 
 Engineering decisions log: what was decided, why, and what we deliberately did NOT do.
-Maintained as decisions were made; newest sections at the bottom. Pair with the PR
-history (squash-merged, so main's log reads as a changelog and PRs carry the detail).
+Maintained as decisions were made; newest sections at the bottom. Pair with PR
+history. Archive: sections >10 PRs old go to `DEV_NOTES-archive.md`; cap 300 lines.
+Prune: review at next hygiene PR.
 
 ---
 
 ## Project context
 
-Streakly is a habit tracker (Next.js 16, bun, Prisma/SQLite, shadcn/ui, dnd-kit)
-evolving into a multi-user SaaS. Target architecture: bun-workspaces monorepo —
-`packages/shared` (pure logic), `apps/api` (Hono backend owning the DB),
-`apps/web` (Next.js, HTTP-only consumer), then Postgres + Better Auth + Stripe.
-
 Principle agreed up front: **ship features first, extract infrastructure between
-features, never mid-feature.** The extraction windows were chosen after feature
-work completed (cadence features merged before the monorepo split; the api split
-happens before auth makes it 3x harder).
+features, never mid-feature.** (Stack: README.md; windows: PR #1.)
 
 ---
 
@@ -72,7 +66,7 @@ nor break the chain.
 Every extension of `StreakStats` is additive with defaults, locked by a
 regression test written BEFORE the change and kept green through every task.
 Example (PR #7): `unit: "day"` + optional `week` — daily/weekdays goals return
-the exact old shape, proven by a shape-lock test.
+the exact old shape, proven by a shape-lock test (verified: `packages/shared/src/streaks.test.ts` — green).
 
 **Why:** it converts "should be backward compatible" from a hope into a CI-failing
 fact.
@@ -215,24 +209,18 @@ them cost ~60% of the repo in dead lines once.
   constraints arrive with the Postgres migration.
 - **No auth until the api split.** Bolt auth onto Next.js route handlers now and
   it would have to move twice.
-- **No intensity scale on the heatmap.** Binary check-ins — the legend lied.
 - **No TS enums.** See decision 7.
 
 ---
 
 ## Roadmap (agreed sequence)
 
-1. ~~Monorepo Step 1: `packages/shared`~~ (PR #1)
-2. ~~Per-goal cadence: schedules, streak semantics, API gates, picker, seeds~~ (PR #2)
-3. ~~Prune/dead-code/chores~~ (PRs #3–#6, #10)
-4. ~~Per-cadence card behavior: week units, quota dots, honest copy~~ (PR #7, #9)
-5. ~~Voluntary rest-day check-ins~~ (PR #8)
-6. **NEXT: Monorepo Step 2 — `apps/api` (Hono) owns the DB; web becomes
-   HTTP-only.** Design drafted: request → zod (shared schema) → Prisma →
-   `computeStreaks` → `GoalDTO`. Three PRs: skeleton, route migration (fixing the
-   loadGoals-loads-everything pattern), web cutover.
-7. Postgres (Neon) migration.
-8. Better Auth + userId scoping on every query (open decision to settle first:
-   single- vs multi-user).
-9. Stripe (subscriptions; can follow post-MVP).
-10. PWA (small; can ride along anytime), later Expo/mobile against the same API.
+1. **NEXT: Monorepo Step 2 — `apps/api` (Hono) owns the DB; web becomes
+   HTTP-only.** Design drafted (see `.hermes/plans/2026-09-11_design-backend.md`):
+   request → zod (shared schema) → Prisma → `computeStreaks` (`packages/shared/src/streaks.ts`) → `GoalDTO`.
+   Three PRs: skeleton, route migration (fix `loadGoals` in `streaks.ts`: loads entire
+   goal set; narrow to per-goal query), web cutover.
+2. Postgres (Neon) migration.
+3. Better Auth + userId scoping (open: single- vs multi-user).
+4. Stripe (subscriptions; post-MVP).
+5. PWA (small; can ride anytime), later Expo/mobile.
