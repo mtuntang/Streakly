@@ -1,0 +1,22 @@
+# Development runtime for Streakly.
+# Thin slice: postgres only. api/web still run on the host
+# (bun run dev) until full containerization lands before deploy.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: streakly
+      POSTGRES_PASSWORD: streakly
+      POSTGRES_DB: streakly
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U streakly -d streakly"]
+      interval: 3s
+      retries: 10
+
+volumes:
+  pgdata:

@@ -1,0 +1,9 @@
+node_modules
+.next
+*.db
+*.db-journal
+.hermes
+dev-server.log
+dev.log
+.env
+.env.*
