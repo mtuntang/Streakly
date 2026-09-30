@@ -24,7 +24,6 @@ if (import.meta.main) {
     fetch: app.fetch,
     port,
   });
-  console.log(`@streakly/api listening on http://localhost:${port}`);
 }
 
 export default app;
