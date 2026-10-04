@@ -50,8 +50,9 @@ local-*
 *.log
 dev.log
 dev.out.log
-test
-prompt
+# scratch dirs (root level only)
+/test
+/prompt
 
 server.log
 # Skills directory
