@@ -12,7 +12,11 @@ datasource db {
 
 // A habit / goal the user wants to stay consistent with.
 model Goal {
-  id          String    @id @default(cuid())
+  // Native uuid (pgcrypto's gen_random_uuid, DB-generated). Random
+  // v4 today; pg 18's uuidv7() is a drop-in upgrade for time-sortable
+  // ids. Non-enumerable: habit data should not be iterable by id.
+  // TS type stays String — Prisma has no uuid scalar, only the pg type.
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String
   description String?
   // Tailwind-friendly color key, e.g. "emerald", "rose", "amber"
@@ -34,8 +38,8 @@ model Goal {
 // converts to/from a "YYYY-MM-DD" civil-day string at the boundary so
 // streak math stays timezone independent.
 model CheckIn {
-  id        String   @id @default(cuid())
-  goalId    String
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  goalId    String   @db.Uuid
   date      DateTime @db.Date
   createdAt DateTime @default(now())
   goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)

@@ -26,6 +26,18 @@ function translatePrismaError(error: unknown): never {
   throw error;
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Goal ids are uuids; anything else cannot exist. Checking here (instead of
+ * letting Prisma throw on malformed uuid input) keeps unknown and malformed
+ * ids on the same 404 path — a malformed id must not become a 500.
+ */
+function assertGoalId(id: string): void {
+  if (!UUID_RE.test(id)) throw notFound();
+}
+
 /** Maps a Prisma goal row (with check-ins) to the wire contract. */
 export function toGoalDTO(goal: GoalRow): GoalDTO {
   // Postgres date columns come back as JS Dates (UTC midnight); the wire
@@ -57,6 +69,7 @@ export async function loadGoals(): Promise<GoalDTO[]> {
 
 /** Loads ONE goal with computed streak stats — routes must not load every goal to validate one. */
 export async function loadGoal(id: string): Promise<GoalDTO | null> {
+  assertGoalId(id);
   const goal = await db.goal.findUnique({
     where: { id },
     include: { checkIns: { select: { date: true } } },
@@ -99,6 +112,7 @@ export async function createGoal(input: CreateGoalInput): Promise<GoalDTO> {
 
 /** Updates the provided fields; throws HttpError(404) if the goal does not exist. */
 export async function updateGoal(id: string, input: UpdateGoalInput): Promise<void> {
+  assertGoalId(id);
   const update: Prisma.GoalUpdateInput = {};
   if (input.name !== undefined) update.name = input.name;
   if (input.description !== undefined) update.description = input.description;
@@ -119,6 +133,7 @@ export async function updateGoal(id: string, input: UpdateGoalInput): Promise<vo
 
 /** Deletes a goal and its check-ins; throws HttpError(404) if it does not exist. */
 export async function deleteGoal(id: string): Promise<void> {
+  assertGoalId(id);
   try {
     await db.goal.delete({ where: { id } });
   } catch (error) {
@@ -127,6 +142,7 @@ export async function deleteGoal(id: string): Promise<void> {
 }
 
 export async function reorderGoals(ids: string[]): Promise<void> {
+  ids.forEach(assertGoalId);
   await db.$transaction(
     ids.map((id, index) =>
       db.goal.update({ where: { id }, data: { order: index } }),
@@ -141,6 +157,7 @@ export async function reorderGoals(ids: string[]): Promise<void> {
  * constraint and removes instead of erroring).
  */
 export async function toggleCheckIn(id: string, dateKey: string): Promise<boolean> {
+  assertGoalId(id);
   try {
     // Prisma @db.Date wants a Date; new Date("YYYY-MM-DD") is UTC midnight,
     // so toKey(fromKey(key)) round-trips losslessly.
@@ -159,6 +176,7 @@ export async function toggleCheckIn(id: string, dateKey: string): Promise<boolea
 }
 
 export async function removeCheckIn(id: string, dateKey: string): Promise<void> {
+  assertGoalId(id);
   await db.checkIn.deleteMany({
     where: { goalId: id, date: new Date(dateKey) },
   });
