@@ -1,10 +1,12 @@
 import { Hono } from "hono";
 import goalsRoute from "./routes/goals";
+import { authRoute } from "./routes/auth";
 import { HttpError } from "./lib/http";
 
 const app = new Hono()
   .basePath("/api")
   .route("/goals", goalsRoute)
+  .route("/auth", authRoute)
   .get("/health", (c) => c.json({ ok: true }))
   // HttpErrors (400/404 from validation and lib) return their message;
   // anything unexpected is logged here and returns a generic 500.
