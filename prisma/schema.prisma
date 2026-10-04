@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -19,8 +19,8 @@ model Goal {
   color       String    @default("emerald")
   // Lucide icon name, e.g. "Flame", "Dumbbell", "BookOpen"
     icon        String    @default("Flame")
-    // Cadence: null = daily; else { type: "daily"|"weekdays"|"weekly", ... } JSON
-    schedule    Json?
+  // Cadence: null = daily; else { type: "daily"|"weekdays"|"weekly", ... }
+  schedule    Json?
   // User-defined sort order for drag-and-drop reordering
   order       Int       @default(0)
   createdAt   DateTime  @default(now())
@@ -30,12 +30,13 @@ model Goal {
   @@map("goals")
 }
 
-// A single day a goal was completed. `date` is a stable YYYY-MM-DD string
-// so streak math is timezone independent.
+// A single day a goal was completed. Postgres date column; the api
+// converts to/from a "YYYY-MM-DD" civil-day string at the boundary so
+// streak math stays timezone independent.
 model CheckIn {
   id        String   @id @default(cuid())
   goalId    String
-  date      String
+  date      DateTime @db.Date
   createdAt DateTime @default(now())
   goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
 

@@ -3,6 +3,7 @@ import { db } from "../db";
 import {
   computeStreaks,
   normalizeSchedule,
+  toKey,
   DEFAULT_COLOR,
   DEFAULT_ICON,
   GOAL_ICONS,
@@ -27,7 +28,9 @@ function translatePrismaError(error: unknown): never {
 
 /** Maps a Prisma goal row (with check-ins) to the wire contract. */
 export function toGoalDTO(goal: GoalRow): GoalDTO {
-  const dates = goal.checkIns.map((c) => c.date);
+  // Postgres date columns come back as JS Dates (UTC midnight); the wire
+  // contract and streak math run on "YYYY-MM-DD" civil-day strings.
+  const dates = goal.checkIns.map((c) => toKey(c.date));
   const schedule = normalizeSchedule(goal.schedule);
   return {
     id: goal.id,
@@ -38,7 +41,7 @@ export function toGoalDTO(goal: GoalRow): GoalDTO {
     schedule,
     createdAt: goal.createdAt.toISOString(),
     updatedAt: goal.updatedAt.toISOString(),
-    checkIns: goal.checkIns,
+    checkIns: goal.checkIns.map((c) => ({ date: toKey(c.date) })),
     stats: computeStreaks(dates, new Date(), schedule),
   };
 }
@@ -139,12 +142,16 @@ export async function reorderGoals(ids: string[]): Promise<void> {
  */
 export async function toggleCheckIn(id: string, dateKey: string): Promise<boolean> {
   try {
-    await db.checkIn.create({ data: { goalId: id, date: dateKey } });
+    // Prisma @db.Date wants a Date; new Date("YYYY-MM-DD") is UTC midnight,
+    // so toKey(fromKey(key)) round-trips losslessly.
+    await db.checkIn.create({ data: { goalId: id, date: new Date(dateKey) } });
     return true;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       // Already checked in for that date → this toggle means "un-check".
-      await db.checkIn.deleteMany({ where: { goalId: id, date: dateKey } });
+      await db.checkIn.deleteMany({
+        where: { goalId: id, date: new Date(dateKey) },
+      });
       return false;
     }
     translatePrismaError(error);
@@ -152,5 +159,7 @@ export async function toggleCheckIn(id: string, dateKey: string): Promise<boolea
 }
 
 export async function removeCheckIn(id: string, dateKey: string): Promise<void> {
-  await db.checkIn.deleteMany({ where: { goalId: id, date: dateKey } });
+  await db.checkIn.deleteMany({
+    where: { goalId: id, date: new Date(dateKey) },
+  });
 }

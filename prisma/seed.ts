@@ -71,9 +71,9 @@ async function main() {
         d.setDate(today.getDate() - (len - 1 - i));
         const key = d.toISOString().slice(0, 10);
         await db.checkIn.upsert({
-          where: { goalId_date: { goalId: goal.id, date: key } },
+          where: { goalId_date: { goalId: goal.id, date: new Date(key) } },
           update: {},
-          create: { goalId: goal.id, date: key },
+          create: { goalId: goal.id, date: new Date(key) },
         });
       }
     }
