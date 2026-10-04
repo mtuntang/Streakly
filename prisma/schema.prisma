@@ -12,7 +12,11 @@ datasource db {
 
 // A habit / goal the user wants to stay consistent with.
 model Goal {
-  id          String    @id @default(cuid())
+  // Native uuid (pgcrypto's gen_random_uuid, DB-generated). Random
+  // v4 today; pg 18's uuidv7() is a drop-in upgrade for time-sortable
+  // ids. Non-enumerable: habit data should not be iterable by id.
+  // TS type stays String — Prisma has no uuid scalar, only the pg type.
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String
   description String?
   // Tailwind-friendly color key, e.g. "emerald", "rose", "amber"
@@ -34,8 +38,8 @@ model Goal {
 // converts to/from a "YYYY-MM-DD" civil-day string at the boundary so
 // streak math stays timezone independent.
 model CheckIn {
-  id        String   @id @default(cuid())
-  goalId    String
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  goalId    String   @db.Uuid
   date      DateTime @db.Date
   createdAt DateTime @default(now())
   goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
@@ -43,4 +47,75 @@ model CheckIn {
   @@unique([goalId, date])
   @@index([date])
   @@map("check_ins")
+}
+
+// ── Better Auth tables (owned by the auth library; see DEV_NOTES) ──
+// `account` here = one login METHOD for a user, not a billable entity.
+
+model User {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  // IANA zone captured at signup, refreshed on session (PR D).
+  timezone      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  userId                String
+  // "credential" (email/password), "google", "github", ...
+  providerId            String
+  // the identity within that provider: email for credential, sub id for OAuth
+  accountId             String
+  // password hash — present only for providerId = "credential"
+  password              String?
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
 }
