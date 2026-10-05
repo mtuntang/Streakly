@@ -17,6 +17,9 @@ model Goal {
   // ids. Non-enumerable: habit data should not be iterable by id.
   // TS type stays String — Prisma has no uuid scalar, only the pg type.
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Owner: every query is scoped by the session user. CheckIn has no
+  // userId — ownership flows through the goal (see DEV_NOTES).
+  userId      String
   name        String
   description String?
   // Tailwind-friendly color key, e.g. "emerald", "rose", "amber"
@@ -29,8 +32,10 @@ model Goal {
   order       Int       @default(0)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   checkIns    CheckIn[]
 
+  @@index([userId])
   @@map("goals")
 }
 
@@ -65,6 +70,7 @@ model User {
 
   accounts Account[]
   sessions Session[]
+  goals    Goal[]
 
   @@map("user")
 }

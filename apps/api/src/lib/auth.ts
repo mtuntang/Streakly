@@ -12,3 +12,18 @@ export const auth = betterAuth({
   database: prismaAdapter(db, { provider: "postgresql" }),
   emailAndPassword: { enabled: true },
 });
+
+import type { Context, Next } from "hono";
+import { HttpError } from "./http";
+
+/**
+ * Route guard: resolves the session from the request cookie and puts the
+ * user id on the context. Every goals route mounts this BEFORE validation —
+ * a 401 must never depend on the shape of the body.
+ */
+export async function requireUser(c: Context, next: Next): Promise<Response | void> {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session) throw new HttpError(401, "Not signed in.");
+  c.set("userId", session.user.id);
+  await next();
+}

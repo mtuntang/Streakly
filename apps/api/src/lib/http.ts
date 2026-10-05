@@ -4,7 +4,7 @@ import type { z } from "zod";
 /** An error with an HTTP status that the error handler returns verbatim. */
 export class HttpError extends Error {
   constructor(
-    public readonly status: 400 | 404 | 500,
+    public readonly status: 400 | 401 | 404 | 500,
     message: string,
   ) {
     super(message);
@@ -12,6 +12,7 @@ export class HttpError extends Error {
 }
 
 export const badRequest = (message: string) => new HttpError(400, message);
+export const unauthorized = (message = "Not signed in.") => new HttpError(401, message);
 export const notFound = (message = "Goal not found") => new HttpError(404, message);
 
 /**
