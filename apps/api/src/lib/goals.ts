@@ -6,7 +6,6 @@ import {
   toKey,
   DEFAULT_COLOR,
   DEFAULT_ICON,
-  GOAL_ICONS,
   type GoalDTO,
   type CreateGoalInput,
   type UpdateGoalInput,
@@ -19,11 +18,18 @@ type GoalRow = Prisma.GoalGetPayload<{
 
 /** Maps a Prisma error to an HttpError where the message is user-meaningful. */
 function translatePrismaError(error: unknown): never {
-  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+  if (isPrismaError(error, "P2025")) {
     // P2025: "An operation failed because it depends on one or more records that were required but was not found."
-    if (error.code === "P2025") throw notFound();
+    throw notFound();
   }
   throw error;
+}
+
+function isPrismaError(
+  error: unknown,
+  code: string,
+): error is Prisma.PrismaClientKnownRequestError {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
 }
 
 const UUID_RE =
@@ -45,19 +51,18 @@ function assertGoalId(id: string): void {
  * 2. A foreign goal returns null, same as a missing goal — routes turn
  *    both into 404, so ids can't be probed for existence.
  */
-async function loadGoalRow(
-  userId: string,
-  id: string,
-  include: Prisma.GoalInclude = { checkIns: { select: { date: true } } },
-): Promise<GoalRow | null> {
-  return db.goal.findFirst({ where: { id, userId }, include });
+async function loadGoalRow(userId: string, id: string): Promise<GoalRow | null> {
+  return db.goal.findFirst({
+    where: { id, userId },
+    include: { checkIns: { select: { date: true } } },
+  });
 }
 
 /** Maps a Prisma goal row (with check-ins) to the wire contract. */
 export function toGoalDTO(goal: GoalRow): GoalDTO {
   // Postgres date columns come back as JS Dates (UTC midnight); the wire
   // contract and streak math run on "YYYY-MM-DD" civil-day strings.
-  const dates = goal.checkIns.map((c) => toKey(c.date));
+  const checkIns = goal.checkIns.map((c) => ({ date: toKey(c.date) }));
   const schedule = normalizeSchedule(goal.schedule);
   return {
     id: goal.id,
@@ -68,8 +73,8 @@ export function toGoalDTO(goal: GoalRow): GoalDTO {
     schedule,
     createdAt: goal.createdAt.toISOString(),
     updatedAt: goal.updatedAt.toISOString(),
-    checkIns: goal.checkIns.map((c) => ({ date: toKey(c.date) })),
-    stats: computeStreaks(dates, new Date(), schedule),
+    checkIns,
+    stats: computeStreaks(checkIns.map((c) => c.date), new Date(), schedule),
   };
 }
 
@@ -103,21 +108,12 @@ export async function loadGoal(userId: string, id: string): Promise<GoalDTO | nu
   return goal ? toGoalDTO(goal) : null;
 }
 
-export async function goalExists(userId: string, id: string): Promise<boolean> {
-  const goal = await db.goal.findFirst({
-    where: { id, userId },
-    select: { id: true },
-  });
-  return goal !== null;
-}
-
 export async function createGoal(
   userId: string,
   input: CreateGoalInput,
 ): Promise<GoalDTO> {
   const color = input.color ?? DEFAULT_COLOR;
-  const icon =
-    input.icon && GOAL_ICONS.includes(input.icon) ? input.icon : DEFAULT_ICON;
+  const icon = input.icon ?? DEFAULT_ICON;
 
   // Place new goals at the end of THIS user's current order.
   const maxOrder = await db.goal.aggregate({
@@ -139,11 +135,9 @@ export async function createGoal(
           ? Prisma.JsonNull
           : (input.schedule ?? undefined),
     },
+    include: { checkIns: { select: { date: true } } },
   });
-
-  const created = await loadGoal(userId, goal.id);
-  if (!created) throw new Error("Goal vanished after create");
-  return created;
+  return toGoalDTO(goal);
 }
 
 /**
@@ -161,9 +155,7 @@ export async function updateGoal(
   if (input.name !== undefined) update.name = input.name;
   if (input.description !== undefined) update.description = input.description;
   if (input.color !== undefined) update.color = input.color;
-  if (input.icon !== undefined && GOAL_ICONS.includes(input.icon)) {
-    update.icon = input.icon;
-  }
+  if (input.icon !== undefined) update.icon = input.icon;
   if (input.schedule !== undefined) {
     update.schedule =
       input.schedule === null ? Prisma.JsonNull : input.schedule;
@@ -212,6 +204,15 @@ async function requireOwnedGoal(userId: string, id: string): Promise<GoalRow> {
 }
 
 /**
+ * Converts a "YYYY-MM-DD" civil-day key to a Date for Prisma @db.Date.
+ * new Date("YYYY-MM-DD") is UTC midnight, so the round-trip through toKey
+ * is lossless.
+ */
+function toDayDate(dateKey: string): Date {
+  return new Date(dateKey);
+}
+
+/**
  * Toggles a check-in for one goal+date. Returns true when the check-in was
  * created, false when it was removed. Race-safe: two concurrent toggles on
  * a missing check-in resolve to one create (the loser hits the unique
@@ -224,15 +225,13 @@ export async function toggleCheckIn(
 ): Promise<boolean> {
   await requireOwnedGoal(userId, id);
   try {
-    // Prisma @db.Date wants a Date; new Date("YYYY-MM-DD") is UTC midnight,
-    // so toKey(fromKey(key)) round-trips losslessly.
-    await db.checkIn.create({ data: { goalId: id, date: new Date(dateKey) } });
+    await db.checkIn.create({ data: { goalId: id, date: toDayDate(dateKey) } });
     return true;
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    if (isPrismaError(error, "P2002")) {
       // Already checked in for that date → this toggle means "un-check".
       await db.checkIn.deleteMany({
-        where: { goalId: id, date: new Date(dateKey) },
+        where: { goalId: id, date: toDayDate(dateKey) },
       });
       return false;
     }
@@ -247,6 +246,6 @@ export async function removeCheckIn(
 ): Promise<void> {
   await requireOwnedGoal(userId, id);
   await db.checkIn.deleteMany({
-    where: { goalId: id, date: new Date(dateKey) },
+    where: { goalId: id, date: toDayDate(dateKey) },
   });
 }
