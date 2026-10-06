@@ -21,8 +21,6 @@ export const auth = betterAuth({
   // from one IP inside a single window, which would exhaust the limit and
   // fail unrelated tests. The limiter is Better Auth runtime behavior, not
   // this repo's logic, so there is nothing meaningful to integration-test.
-  // Storage is per-instance memory — move to secondary storage (Redis)
-  // before running more than one api instance.
   rateLimit: {
     enabled: process.env.NODE_ENV !== "test",
     window: 60,
