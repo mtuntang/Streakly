@@ -1,6 +1,8 @@
 /**
  * The single adapter between the test suite and the HTTP API: tests call
- * api.goals.create({...}) instead of hand-building requests.
+ * api.goals.create({...}) instead of hand-building requests. In effect it
+ * is a small request builder for the app's endpoints, which is what keeps
+ * individual tests one line and free of HTTP plumbing.
  *
  * This module owns the mechanics — paths, methods, session cookie, JSON
  * encoding. Parameter types come from @streakly/shared, the same schemas
