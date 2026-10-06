@@ -9,10 +9,34 @@ import { unauthorized } from "./http";
  * providerId/accountId shape is what makes "add Google later" an insert,
  * not a migration. Better Auth owns the user/session/account/verification
  * tables; app code only ever consumes session.user.id.
+ *
+ * Rate limiting is per-IP in memory: correct for a single api instance,
+ * but switch storage to Redis (secondary storage) before running more
+ * than one instance, or limits reset per instance.
  */
 export const auth = betterAuth({
   database: prismaAdapter(db, { provider: "postgresql" }),
-  emailAndPassword: { enabled: true },
+  emailAndPassword: {
+    enabled: true,
+    // Default is 8; raised for a paid product where the length floor is
+    // the whole password policy (no quality checks beyond it).
+    minPasswordLength: 10,
+  },
+  // Rate limiting is OFF by default in Better Auth and ON here for production.
+  // Disabled under bun test: a suite makes hundreds of in-process requests
+  // from one IP inside a single window, which would exhaust the limit and
+  // fail unrelated tests. The limiter is Better Auth runtime behavior, not
+  // this repo's logic, so there is nothing meaningful to integration-test.
+  rateLimit: {
+    enabled: process.env.NODE_ENV !== "test",
+    window: 60,
+    max: 100,
+    specialRules: [
+      // Credential endpoints get a much tighter budget than the general API.
+      { matcher: "/sign-in/email", window: 60, max: 5 },
+      { matcher: "/sign-up/email", window: 60, max: 5 },
+    ],
+  },
 });
 
 /**
