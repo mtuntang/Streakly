@@ -21,7 +21,7 @@ import { HttpError } from "./http";
  * user id on the context. Every goals route mounts this BEFORE validation —
  * a 401 must never depend on the shape of the body.
  */
-export async function requireUser(c: Context, next: Next): Promise<Response | void> {
+export async function authenticateSession(c: Context, next: Next): Promise<Response | void> {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
   if (!session) throw new HttpError(401, "Not signed in.");
   c.set("userId", session.user.id);

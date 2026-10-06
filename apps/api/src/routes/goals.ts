@@ -18,10 +18,10 @@ import {
   updateGoal,
 } from "../lib/goals";
 import { badRequest, notFound, parseBody } from "../lib/http";
-import { requireUser } from "../lib/auth";
+import { authenticateSession } from "../lib/auth";
 
 // ── Handlers ────────────────────────────────────────────────────────────
-// requireUser (mounted on both routers below) resolves the session cookie
+// authenticateSession (mounted on both routers below) resolves the session cookie
 // and sets userId; an anonymous request is a 401 before any validation.
 // Validation errors throw HttpError(400) via parseBody; missing or
 // foreign goals throw HttpError(404) from the lib functions. app.onError
@@ -106,18 +106,18 @@ async function removeCheckInRoute(c: Context) {
 }
 
 // ── Route table ─────────────────────────────────────────────────────────
-// Grouped by resource, both behind requireUser:
+// Grouped by resource, both behind authenticateSession:
 //   goalsCollection — scoped to the whole set
 //   goalResource    — scoped to one goal id (mounted under the collection,
 //                     so /reorder is guaranteed to match before /:id)
 const goalsCollection = new Hono()
-  .use("*", requireUser)
+  .use("*", authenticateSession)
   .get("/", listGoals)
   .post("/", createGoalRoute)
   .patch("/reorder", reorderGoalsRoute);
 
 const goalResource = new Hono()
-  .use("*", requireUser)
+  .use("*", authenticateSession)
   .get("/:id", getGoalRoute)
   .patch("/:id", updateGoalRoute)
   .delete("/:id", deleteGoalRoute)
