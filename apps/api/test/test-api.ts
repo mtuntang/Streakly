@@ -1,10 +1,11 @@
 /**
- * Typed test client — the single adapter between tests and the HTTP API.
+ * The single adapter between the test suite and the HTTP API: tests call
+ * api.goals.create({...}) instead of hand-building requests.
  *
- * Tests state intent (api.goals.create({ ... })); this module owns the
- * mechanics (paths, methods, session cookie, JSON encoding). Parameter types
- * come from @streakly/shared — the same source the server validates against —
- * so a contract change flags every test call at compile time.
+ * This module owns the mechanics — paths, methods, session cookie, JSON
+ * encoding. Parameter types come from @streakly/shared, the same schemas
+ * the server validates against, so a contract change breaks test
+ * compilation instead of failing at runtime.
  */
 export function createTestApi(
   app: { request(path: string, init?: RequestInit): Response | Promise<Response> },
