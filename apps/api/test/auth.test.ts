@@ -1,7 +1,7 @@
 /**
  * Integration tests for the auth api.
  *
- * Runs against a THROWAWAY postgres database (streakly_test on the
+ * Runs against a THROWAWAY postgres database (streakly_auth_test on the
  * compose container), created and dropped per run. The dev database is
  * never touched.
  */
@@ -12,7 +12,7 @@ import path from "node:path";
 const ROOT = path.resolve(import.meta.dir, "../../.."); // repo root (test dir is apps/api/test)
 const TEST_DB_URL =
   process.env.TEST_DATABASE_URL ??
-  "postgresql://streakly:streakly@localhost:5432/streakly_test";
+  "postgresql://streakly:streakly@localhost:5432/streakly_auth_test";
 process.env.DATABASE_URL = TEST_DB_URL;
 (process.env as Record<string, string>).NODE_ENV = "test";
 
@@ -23,8 +23,8 @@ const psql = (sql: string) =>
   );
 
 beforeAll(() => {
-  psql("DROP DATABASE IF EXISTS streakly_test;");
-  psql("CREATE DATABASE streakly_test;");
+  psql("DROP DATABASE IF EXISTS streakly_auth_test;");
+  psql("CREATE DATABASE streakly_auth_test;");
   execSync("bunx prisma db push --skip-generate", {
     cwd: ROOT,
     env: { ...process.env },
@@ -36,7 +36,7 @@ beforeAll(() => {
 afterAll(async () => {
   const { db } = await import("../src/db");
   await db.$disconnect();
-  psql("DROP DATABASE IF EXISTS streakly_test;");
+  psql("DROP DATABASE IF EXISTS streakly_auth_test;");
 });
 
 const { default: app } = await import("../src/index");

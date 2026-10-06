@@ -2,10 +2,22 @@
  * Seeds demo goals with realistic streak history if the DB is empty.
  * Run manually: bun run db:seed   (or: bun run --env-file=.env prisma/seed.ts)
  * Never runs automatically — demo scaffolding must not hit a real user's DB.
+ *
+ * Goals are owned by a demo user created through the REAL sign-up flow
+ * (app.request -> Better Auth), so the credential account/password hash is
+ * exactly what a live login would expect. Sign in with:
+ *   demo@streakly.dev / demo-password-123
  */
 import { Prisma, PrismaClient } from "@prisma/client";
 
 const db = new PrismaClient();
+
+const DEMO_USER = {
+  name: "Demo User",
+  email: "demo@streakly.dev",
+  password: "demo-password-123",
+};
+
 
 const samples = [
   {
@@ -44,6 +56,25 @@ const samples = [
   },
 ];
 
+
+/** Creates the demo user through the real sign-up endpoint (idempotent —
+ *  Better Auth rejects duplicates), returning the user row. The app import
+ *  happens here so env must already be loaded by the runner. */
+async function ensureDemoUser(): Promise<{ id: string }> {
+  const { default: app } = await import("../apps/api/src/index");
+  const res = await app.request("/api/auth/sign-up/email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(DEMO_USER),
+  });
+  if (res.status !== 200) {
+    throw new Error(`Demo sign-up failed (${res.status}): ${await res.text()}`);
+  }
+  const user = await db.user.findUnique({ where: { email: DEMO_USER.email } });
+  if (!user) throw new Error("Demo user missing after sign-up");
+  return { id: user.id };
+}
+
 async function main() {
   const count = await db.goal.count();
   if (count > 0) {
@@ -51,10 +82,16 @@ async function main() {
     return;
   }
 
+  const { id: userId } = await ensureDemoUser();
+  console.log("Seeded demo user:", DEMO_USER.email, `(${userId})`);
+
   const today = new Date();
+  let order = 0;
   for (const s of samples) {
     const goal = await db.goal.create({
       data: {
+        userId,
+        order: order++,
         name: s.name,
         description: s.description,
         color: s.color,

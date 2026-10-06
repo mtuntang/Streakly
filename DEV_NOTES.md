@@ -213,14 +213,46 @@ them cost ~60% of the repo in dead lines once.
 
 ---
 
+## Planned Postgres schema (target state, not yet written)
+
+Postgres 16 via `docker-compose.yml` (`docker compose up -d`, port 5432, pgdata
+volume). Schema flip is SQLite → `provider = "postgresql"`; no data migration —
+demo data re-seeds via `bun run db:seed`.
+
+- **Better Auth adds 4 tables** (auth library owns them): `user` (id, email
+  unique, name, emailVerified, timezone — IANA zone captured at signup),
+  `session` (token unique, expiresAt), `account` (providerId + accountId
+  unique composite; password hash for email/password), `verification`.
+- **App tables gain ownership:** `Goal.userId` FK → user, `ON DELETE CASCADE`;
+  `CheckIn` has NO userId — ownership flows through the goal (one query chain:
+  session user → goal → check-in). `UNIQUE(goalId, date)` unchanged — it is the
+  check-in toggle-race guard.
+- **BCNF note:** timezone lives on `user` only, never copied onto `goal`
+  (goalId → userId → timezone would be a transitive dependency, a 3NF/BCNF
+  violation). Single source of truth.
+- **Type upgrades from SQLite:** `CheckIn.date` String → `DateTime @db.Date`
+  (api converts Date ↔ "YYYY-MM-DD" at the boundary so the DTO and shared
+  streak math are untouched); `schedule` Json → jsonb. Migration order: schema
+  flip + date handling first (one small PR), Better Auth after (it wants
+  `prisma migrate` history).
+
+---
+
 ## Roadmap (agreed sequence)
 
 1. **NEXT: Monorepo Step 2 — `apps/api` (Hono) owns the DB; web becomes
    HTTP-only.** Design drafted (see `.hermes/plans/2026-09-11_design-backend.md`):
    request → zod (shared schema) → Prisma → `computeStreaks` (`packages/shared/src/streaks.ts`) → `GoalDTO`.
    Three PRs: skeleton, route migration (fix `loadGoals` in `streaks.ts`: loads entire
-   goal set; narrow to per-goal query), web cutover.
-2. Postgres (Neon) migration.
-3. Better Auth + userId scoping (open: single- vs multi-user).
+   goal set; narrow to per-goal query), web cutover. **(DONE — PRs #14, #17, #18,
+   #19: api extraction, Postgres on docker compose, Better Auth plumbing, uuid ids.)**
+2. Postgres migration **(DONE — PR #17)**.
+3. Better Auth + userId scoping. Plumbing **(IN REVIEW — PR #18)**; scoping PR next,
+   then web session UI. Decision: one person = one user (no profiles; see auth notes).
 4. Stripe (subscriptions; post-MVP).
-5. PWA (small; can ride anytime), later Expo/mobile.
+5. PWA + **offline caching**: service worker caches shell + read data; writes made
+   offline are queued client-side with CLIENT-GENERATED ids (uuid v7) and replayed on
+   reconnect — this is the trigger for app-side id generation and the v7 upgrade
+   (pg 18 `uuidv7()`, drop-in). Conflict policy: per-check-in idempotency makes
+   check-ins merge-safe; text edits last-write-wins. Later Expo/mobile inherits the
+   same sync layer.
