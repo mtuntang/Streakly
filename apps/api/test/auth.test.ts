@@ -81,6 +81,18 @@ describe("auth api", () => {
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
 
+  it("sign-up with a too-short password is rejected", async () => {
+    const res = await app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...USER, email: "short@test.dev", password: "short" }),
+    });
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    const { db } = await import("../src/db");
+    const user = await db.user.findUnique({ where: { email: "short@test.dev" } });
+    expect(user).toBeNull();
+  });
+
   it("sign-in returns a session; wrong password is rejected", async () => {
     const ok = await signIn();
     expect(ok.status).toBe(200);

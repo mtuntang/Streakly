@@ -12,7 +12,25 @@ import { unauthorized } from "./http";
  */
 export const auth = betterAuth({
   database: prismaAdapter(db, { provider: "postgresql" }),
-  emailAndPassword: { enabled: true },
+  emailAndPassword: {
+    enabled: true,
+    minPasswordLength: 10,
+  },
+  // Rate limiting is OFF by default in Better Auth and ON here for production.
+  // Disabled under bun test: a suite makes hundreds of in-process requests
+  // from one IP inside a single window, which would exhaust the limit and
+  // fail unrelated tests. The limiter is Better Auth runtime behavior, not
+  // this repo's logic, so there is nothing meaningful to integration-test.
+  rateLimit: {
+    enabled: process.env.NODE_ENV !== "test",
+    window: 60,
+    max: 100,
+    specialRules: [
+      // Credential endpoints get a much tighter budget than the general API.
+      { matcher: "/sign-in/email", window: 60, max: 5 },
+      { matcher: "/sign-up/email", window: 60, max: 5 },
+    ],
+  },
 });
 
 /**
