@@ -84,6 +84,15 @@ export async function loadGoals(userId: string): Promise<GoalDTO[]> {
 }
 
 /**
+ * Prisma's updateMany/deleteMany return a count instead of throwing when
+ * nothing matched the where clause — no row means the goal is missing OR
+ * owned by someone else, and both read as a 404.
+ */
+function assertFound(count: number): void {
+  if (count === 0) throw notFound();
+}
+
+/**
  * Loads one of the user's goals with computed streak stats.
  * Routes call this instead of loading every goal to validate one; a goal
  * owned by another user returns null, which the route maps to 404.
@@ -163,7 +172,7 @@ export async function updateGoal(
     where: { id, userId },
     data: update,
   });
-  if (count === 0) throw notFound();
+  assertFound(count);
 }
 
 /**
@@ -174,7 +183,7 @@ export async function updateGoal(
 export async function deleteGoal(userId: string, id: string): Promise<void> {
   assertGoalId(id);
   const { count } = await db.goal.deleteMany({ where: { id, userId } });
-  if (count === 0) throw notFound();
+  assertFound(count);
 }
 
 export async function reorderGoals(userId: string, ids: string[]): Promise<void> {
