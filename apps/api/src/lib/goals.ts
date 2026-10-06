@@ -38,9 +38,13 @@ function assertGoalId(id: string): void {
   if (!UUID_RE.test(id)) throw notFound();
 }
 
-/** Ownership check + fetch in one query. id+userId is not a unique pair,
- *  so this is findFirst, never findUnique — the userId in the where clause
- *  is what makes another user's goal indistinguishable from a missing one. */
+/**
+ * Fetches a goal only if the user owns it: ownership check and fetch are
+ * the same query. Two consequences, both deliberate:
+ * 1. findFirst, not findUnique — (id, userId) is not a unique pair.
+ * 2. A foreign goal returns null, same as a missing goal — routes turn
+ *    both into 404, so ids can't be probed for existence.
+ */
 async function loadGoalRow(
   userId: string,
   id: string,
