@@ -1,15 +1,16 @@
 import { z } from "zod";
-import { GOAL_COLORS } from "./goal-config";
+import { GOAL_COLORS, GOAL_ICONS } from "./goal-config";
 import { ScheduleSchema } from "./schedule";
 
 const colorKeys = GOAL_COLORS.map((c) => c.key) as [string, ...string[]];
+const iconKeys = GOAL_ICONS as [string, ...string[]];
 
 /** Contract for creating a goal — same schema validates the web form and the API edge. */
 export const CreateGoalSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(80),
   description: z.string().trim().max(280).optional().nullable(),
   color: z.enum(colorKeys).optional(),
-  icon: z.string().optional(),
+  icon: z.enum(iconKeys).optional(),
   schedule: ScheduleSchema.optional().nullable(),
 });
 
