@@ -40,7 +40,7 @@ function assertGoalId(id: string): void {
 
 /**
  * Fetches a goal only if the user owns it: ownership check and fetch are
- * the same query. Two consequences, both deliberate:
+ * the same query. Two consequences:
  * 1. findFirst, not findUnique — (id, userId) is not a unique pair.
  * 2. A foreign goal returns null, same as a missing goal — routes turn
  *    both into 404, so ids can't be probed for existence.
@@ -83,8 +83,11 @@ export async function loadGoals(userId: string): Promise<GoalDTO[]> {
   return goals.map(toGoalDTO);
 }
 
-/** Loads ONE of the user's goals with computed streak stats — routes must not
- *  load every goal to validate one. Another user's goal reads as missing. */
+/**
+ * Loads one of the user's goals with computed streak stats.
+ * Routes call this instead of loading every goal to validate one; a goal
+ * owned by another user returns null, which the route maps to 404.
+ */
 export async function loadGoal(userId: string, id: string): Promise<GoalDTO | null> {
   assertGoalId(id);
   const goal = await loadGoalRow(userId, id);
@@ -134,9 +137,11 @@ export async function createGoal(
   return created;
 }
 
-/** Updates the provided fields; throws HttpError(404) if the goal does not
- *  exist OR belongs to someone else — updateMany over the scoped where is
- *  the ownership check and the write in one statement. */
+/**
+ * Updates the provided fields, throwing 404 when nothing matched.
+ * The userId in the where clause makes updateMany both the ownership check
+ * and the write, in one statement.
+ */
 export async function updateGoal(
   userId: string,
   id: string,
@@ -161,8 +166,11 @@ export async function updateGoal(
   if (count === 0) throw notFound();
 }
 
-/** Deletes a goal and its check-ins; throws HttpError(404) if the goal does
- *  not exist OR belongs to someone else. */
+/**
+ * Deletes a goal and its check-ins, throwing 404 when nothing matched.
+ * deleteMany over { id, userId } gives the same ownership-in-where pattern
+ * as updateGoal: a foreign goal is indistinguishable from a missing one.
+ */
 export async function deleteGoal(userId: string, id: string): Promise<void> {
   assertGoalId(id);
   const { count } = await db.goal.deleteMany({ where: { id, userId } });
@@ -182,8 +190,11 @@ export async function reorderGoals(userId: string, ids: string[]): Promise<void>
   );
 }
 
-/** Loads the user's goal or throws 404 — the gate every check-in mutation
- *  passes through, so check-in rows never need a userId of their own. */
+/**
+ * Loads the user's goal or throws 404 — the gate every check-in mutation
+ * passes through. Check-in rows need no userId of their own because
+ * ownership always flows goal → check-in via this gate.
+ */
 async function requireOwnedGoal(userId: string, id: string): Promise<GoalRow> {
   assertGoalId(id);
   const goal = await loadGoalRow(userId, id);
