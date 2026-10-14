@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   DndContext,
   closestCenter,
+  KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
@@ -13,6 +14,7 @@ import {
   SortableContext,
   arrayMove,
   rectSortingStrategy,
+  sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { Flame, LogOut, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -43,6 +45,8 @@ export function StreaksApp() {
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
     }),
+    // Space picks up the focused drag handle, arrows move it, Space drops.
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   // Goal ids with a check-in request in flight (see handleToggleToday).
