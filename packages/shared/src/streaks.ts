@@ -188,6 +188,9 @@ function weeklyStats(
   for (const key of sorted) {
     const ws = startOfWeek(fromKey(key), { weekStartsOn: 0 });
     if (prevWeekStart && ws <= prevWeekStart) continue; // week already evaluated
+    // The loop only visits weeks that have check-ins, so a skipped week is an
+    // empty one, and an empty week ends the run.
+    if (prevWeekStart && differenceInCalendarDays(ws, prevWeekStart) > 7) run = 0;
     const we = addDays(ws, 6);
     if (countWeek(ws, we) >= quota) {
       run += 1;

@@ -144,6 +144,23 @@ describe("weekly stats extras", () => {
     const s = computeStreaks(["2026-09-09"], NOW, { type: "weekly", timesPerWeek: 2 });
     expect(s.doneToday).toBe(true);
   });
+  it("weekly longest resets on a week with no check-ins at all", () => {
+    // Three single weeks with empty weeks between them: the best run is 1.
+    const s = computeStreaks(
+      ["2026-01-04", "2026-02-01", "2026-03-01"],
+      new Date("2026-03-02T12:00:00"),
+      { type: "weekly", timesPerWeek: 1 },
+    );
+    expect(s.longest).toBe(1);
+  });
+  it("weekly longest still counts back-to-back weeks as one run", () => {
+    const s = computeStreaks(
+      ["2026-02-15", "2026-02-22", "2026-03-01"],
+      new Date("2026-03-02T12:00:00"),
+      { type: "weekly", timesPerWeek: 1 },
+    );
+    expect(s.longest).toBe(3);
+  });
   it("weekly current counts consecutive weeks meeting quota (unit week)", () => {
     // Prior week (Sun 8-30..Sat 9-5): 3 checks → met; this week met too → current 2
     const s = computeStreaks(
