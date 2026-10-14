@@ -115,6 +115,17 @@ describe("computeStreaks (scheduled)", () => {
       active: false,
     });
   });
+  it("future check-ins don't count toward longest or total", () => {
+    const keys = ["2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12"]; // NOW is 09-09
+    expect(computeStreaks(keys, NOW)).toMatchObject({ current: 1, longest: 1, total: 1 });
+  });
+  it("duplicate keys count once in total", () => {
+    expect(computeStreaks(["2026-09-08", "2026-09-08", "2026-09-09"], NOW).total).toBe(2);
+  });
+  it("weekly: a future check-in this week doesn't meet today's quota", () => {
+    const s = computeStreaks(["2026-09-07", "2026-09-11"], NOW, { type: "weekly", timesPerWeek: 2 });
+    expect(s).toMatchObject({ total: 1, week: { done: 1, met: false } });
+  });
   it("null schedule behaves exactly like daily", () => {
     const keys = ["2026-09-07", "2026-09-08", "2026-09-09"];
     expect(computeStreaks(keys, NOW, null)).toEqual(computeStreaks(keys, NOW));

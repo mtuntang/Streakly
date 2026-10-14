@@ -70,15 +70,19 @@ export function computeStreaks(
   now: Date = new Date(),
   schedule: Schedule | null = null,
 ): StreakStats {
-  const set = new Set(dateKeys);
-  const sorted = [...dateKeys].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  const today = toKey(now);
+  // Each day counts once, and days after today haven't happened yet: neither
+  // may inflate total, longest, or this week's quota.
+  const sorted = [...new Set(dateKeys)]
+    .filter((key) => key && key <= today)
+    .sort((a, b) => a.localeCompare(b));
+  const set = new Set(sorted);
 
   if (schedule?.type === "weekly") {
     return weeklyStats(set, sorted, now, schedule.timesPerWeek);
   }
 
   const scheduled = (d: Date) => isScheduledDay(schedule, d.getDay());
-  const today = toKey(now);
   // doneToday = checked today, scheduled or not (voluntary rest-day check-ins count).
   const doneToday = set.has(today);
 
