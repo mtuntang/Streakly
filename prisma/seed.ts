@@ -59,8 +59,9 @@ const samples = [
 
 /**
  * Creates the demo user through the real sign-up endpoint and returns its
- * id. Running it again is safe because Better Auth rejects the duplicate.
- * The app is imported here, so the runner must load env first.
+ * id. It throws if the user already exists, so it is only safe on an empty
+ * database; main calls it only when there are no goals yet. The app is
+ * imported here, so the runner must load env first.
  */
 async function ensureDemoUser(): Promise<{ id: string }> {
   const { app } = await import("../apps/api/src/app");
