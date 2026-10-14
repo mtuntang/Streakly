@@ -35,6 +35,12 @@ export interface StreakStats {
   unit: StreakUnit;
   /** Week-quota progress, present only for weekly cadence. */
   week?: WeekProgress;
+  /**
+   * Completion rate, 0–100. Daily and weekdays goals: the share of scheduled
+   * days in the last 30 that were checked (today counts only once checked).
+   * Weekly goals: the share of the last 4 full weeks that met the quota.
+   */
+  rate30: number;
 }
 
 /** Unit the current streak is counted in for display. */
@@ -139,7 +145,20 @@ export function computeStreaks(
     }
   }
 
-  return { current, longest, total: sorted.length, doneToday, active, unit: "day" };
+  // --- rate30: checked scheduled days over scheduled days, last 30 days. ---
+  let scheduledDays = 0;
+  let checkedDays = 0;
+  for (let i = 0; i < 30; i++) {
+    const day = addDays(now, -i);
+    if (!scheduled(day)) continue;
+    const key = toKey(day);
+    if (i === 0 && !set.has(key)) continue; // today is still open
+    scheduledDays += 1;
+    if (set.has(key)) checkedDays += 1;
+  }
+  const rate30 = scheduledDays > 0 ? Math.round((checkedDays / scheduledDays) * 100) : 0;
+
+  return { current, longest, total: sorted.length, doneToday, active, unit: "day", rate30 };
 }
 
 /** Computes stats for a weekly goal, where the unit is a calendar week (Sunday start). */
@@ -209,12 +228,20 @@ function weeklyStats(
     prevWeekStart = ws;
   }
 
+  // rate30 = share of the last 4 full weeks (before this one) that met quota.
+  let weeksMet = 0;
+  for (let k = 1; k <= 4; k++) {
+    const ws = addDays(weekStart, -7 * k);
+    if (countWeek(ws, addDays(ws, 6)) >= quota) weeksMet += 1;
+  }
+
   return {
     current,
     longest,
     total: sorted.length,
     doneToday,
     active: reachable,
+    rate30: Math.round((weeksMet / 4) * 100),
     unit: "week",
     week: { quota, done: checksThisWeek, met: metThisWeek },
   };

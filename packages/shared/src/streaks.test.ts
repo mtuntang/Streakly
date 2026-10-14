@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { computeStreaks } from "./streaks";
+import { computeStreaks, toKey } from "./streaks";
 
 const NOW = new Date("2026-09-09T12:00:00"); // Wednesday
 const WD = { type: "weekdays" as const, days: [1, 3, 5] }; // Mon/Wed/Fri
@@ -240,5 +240,35 @@ describe("stats shape lock (daily/weekdays)", () => {
     expect(daily.week).toBeUndefined();
     expect(weekdays.unit).toBe("day");
     expect(weekdays.week).toBeUndefined();
+  });
+});
+/** Keys for every day in the 30 days ending NOW whose weekday is in `days`. */
+function last30Keys(days: number[], skipToday = false): string[] {
+  const keys: string[] = [];
+  for (let i = skipToday ? 1 : 0; i < 30; i++) {
+    const d = new Date(NOW);
+    d.setDate(d.getDate() - i);
+    if (days.includes(d.getDay())) keys.push(toKey(d));
+  }
+  return keys;
+}
+
+describe("30-day completion rate", () => {
+  it("weekdays: every scheduled day checked → 100%, not 13/30", () => {
+    expect(computeStreaks(last30Keys([1, 3, 5]), NOW, WD).rate30).toBe(100);
+  });
+  it("daily: today not checked yet doesn't count against the rate", () => {
+    expect(computeStreaks(last30Keys([0, 1, 2, 3, 4, 5, 6], true), NOW).rate30).toBe(100);
+  });
+  it("weekdays: check-ins only on rest days don't raise it", () => {
+    expect(computeStreaks(last30Keys([6]), NOW, WD).rate30).toBe(0);
+  });
+  it("weekly: share of the last 4 full weeks that met the quota", () => {
+    // 2×/week. Weeks starting Aug 16, 23, 30 met; Aug 9 week only once.
+    const keys = ["2026-08-10", "2026-08-17", "2026-08-18", "2026-08-24", "2026-08-25", "2026-08-31", "2026-09-01"];
+    expect(computeStreaks(keys, NOW, { type: "weekly", timesPerWeek: 2 }).rate30).toBe(75);
+  });
+  it("no check-ins → 0%", () => {
+    expect(computeStreaks([], NOW).rate30).toBe(0);
   });
 });
