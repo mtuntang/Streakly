@@ -51,11 +51,22 @@ export const auth = betterAuth({
 });
 
 /**
+ * Context variables set by authenticateSession. Routers declare this type
+ * so `c.get("userId")` is a typed string: a misspelled key fails to
+ * compile instead of reading undefined, which Prisma would treat as "no
+ * filter" and return every user's rows.
+ */
+export type AuthEnv = { Variables: { userId: string } };
+
+/**
  * Route guard: resolves the session from the request cookie and puts the
  * user id on the context. Every goals route mounts this BEFORE validation —
  * a 401 must never depend on the shape of the body.
  */
-export async function authenticateSession(c: Context, next: Next): Promise<void> {
+export async function authenticateSession(
+  c: Context<AuthEnv>,
+  next: Next,
+): Promise<void> {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
   if (!session) throw unauthorized();
   c.set("userId", session.user.id);
