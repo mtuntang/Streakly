@@ -50,11 +50,15 @@ async function createGoalRoute(c: Context<AuthEnv>) {
   return c.json(await createGoal(c.get("userId"), input), 201);
 }
 
+/** Upper bound on one reorder request, so a single call can't open a huge transaction. */
+const MAX_REORDER_IDS = 500;
+
 /** PATCH /goals/reorder — body { ids: string[] }; each id's order = its index. */
 async function reorderGoalsRoute(c: Context<AuthEnv>) {
   const { ids } = await parseBody(
     c,
-    z.object({ ids: z.array(z.string()).min(1) }),
+    // guid() accepts any 8-4-4-4-12 hex id, the same shape assertGoalId checks.
+    z.object({ ids: z.array(z.guid("ids must be goal ids")).min(1).max(MAX_REORDER_IDS) }),
   );
   await reorderGoals(c.get("userId"), ids);
   return c.json(await loadGoals(c.get("userId")));
