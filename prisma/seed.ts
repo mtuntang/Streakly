@@ -61,7 +61,7 @@ const samples = [
  *  Better Auth rejects duplicates), returning the user row. The app import
  *  happens here so env must already be loaded by the runner. */
 async function ensureDemoUser(): Promise<{ id: string }> {
-  const { default: app } = await import("../apps/api/src/index");
+  const { app } = await import("../apps/api/src/app");
   const res = await app.request("/api/auth/sign-up/email", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
