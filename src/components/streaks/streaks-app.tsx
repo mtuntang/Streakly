@@ -233,9 +233,17 @@ export function StreaksApp() {
         });
       }
     } catch {
-      // Revert on failure.
+      // Undo only this click, on the goal as it is now: restoring the
+      // pre-click copy would also wipe anything that arrived since, such as
+      // a refresh that brought newer data.
       setGoals((prev) =>
-        prev.map((g) => (g.id === goal.id ? goal : g)),
+        prev.map((g) => {
+          if (g.id !== goal.id) return g;
+          const checkIns = wasDone
+            ? [...g.checkIns, { date: today }]
+            : g.checkIns.filter((c) => c.date !== today);
+          return { ...g, checkIns, stats: { ...g.stats, doneToday: wasDone } };
+        }),
       );
       toast({
         title: "Could not check in",
