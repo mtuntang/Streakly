@@ -181,6 +181,10 @@ function weeklyStats(
     }
   }
 
+  // A week that can no longer reach its quota ends the streak, the same way a
+  // missed scheduled day ends a daily one.
+  if (!reachable) current = 0;
+
   // longest = best run of consecutive weeks meeting quota across history.
   let longest = 0;
   let run = 0;

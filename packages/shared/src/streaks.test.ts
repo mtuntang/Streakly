@@ -161,6 +161,16 @@ describe("weekly stats extras", () => {
     );
     expect(s.longest).toBe(3);
   });
+  it("weekly current drops to 0 once this week's quota can no longer be met", () => {
+    // 7×/week: three full weeks, then Sunday 10-11 missed. It is Monday, so
+    // this week can't reach 7 any more: the streak is lost, like a daily goal's.
+    const keys: string[] = [];
+    for (let d = new Date("2026-09-20T12:00:00"); d <= new Date("2026-10-10T12:00:00"); d.setDate(d.getDate() + 1)) {
+      keys.push(d.toISOString().slice(0, 10));
+    }
+    const s = computeStreaks(keys, new Date("2026-10-12T12:00:00"), { type: "weekly", timesPerWeek: 7 });
+    expect(s).toMatchObject({ active: false, current: 0, longest: 3 });
+  });
   it("weekly current counts consecutive weeks meeting quota (unit week)", () => {
     // Prior week (Sun 8-30..Sat 9-5): 3 checks → met; this week met too → current 2
     const s = computeStreaks(
