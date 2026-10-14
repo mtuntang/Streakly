@@ -15,7 +15,7 @@ export interface ColorConfig {
   cellOn: string;
 }
 
-// Note: intentionally avoiding indigo/blue per project guidelines.
+// Indigo and blue are left out on purpose, per the project's color guidelines.
 export const GOAL_COLORS: ColorConfig[] = [
   {
     key: "emerald",
@@ -123,6 +123,7 @@ export const COLOR_MAP: Record<string, ColorConfig> = Object.fromEntries(
 export const DEFAULT_COLOR = "emerald";
 export const DEFAULT_ICON = "Flame";
 
+/** Returns the color config for a key, falling back to the first color. */
 export function getColor(key: string): ColorConfig {
   return COLOR_MAP[key] ?? GOAL_COLORS[0];
 }

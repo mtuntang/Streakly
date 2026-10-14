@@ -9,6 +9,7 @@ interface StatsBarProps {
   goals: GoalDTO[];
 }
 
+/** Renders the summary cards (done today, active streaks, records, totals). */
 export function StatsBar({ goals }: StatsBarProps) {
   const total = goals.length;
   const doneToday = goals.filter((g) => g.stats.doneToday).length;

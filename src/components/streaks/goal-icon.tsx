@@ -44,6 +44,7 @@ const ICONS: Record<string, LucideIcon> = {
   Coffee,
 };
 
+/** Renders a goal's Lucide icon by name, falling back to Flame. */
 export function GoalIcon({
   name,
   className,

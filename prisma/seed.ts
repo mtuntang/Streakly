@@ -57,9 +57,12 @@ const samples = [
 ];
 
 
-/** Creates the demo user through the real sign-up endpoint (idempotent —
- *  Better Auth rejects duplicates), returning the user row. The app import
- *  happens here so env must already be loaded by the runner. */
+/**
+ * Creates the demo user through the real sign-up endpoint and returns its
+ * id. It throws if the user already exists, so it is only safe on an empty
+ * database; main calls it only when there are no goals yet. The app is
+ * imported here, so the runner must load env first.
+ */
 async function ensureDemoUser(): Promise<{ id: string }> {
   const { app } = await import("../apps/api/src/app");
   const res = await app.request("/api/auth/sign-up/email", {
@@ -75,6 +78,7 @@ async function ensureDemoUser(): Promise<{ id: string }> {
   return { id: user.id };
 }
 
+/** Seeds the demo user and sample goals, unless the database already has goals. */
 async function main() {
   const count = await db.goal.count();
   if (count > 0) {

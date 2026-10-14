@@ -19,9 +19,10 @@ export const ScheduleSchema = z.discriminatedUnion("type", [
 export type Schedule = z.infer<typeof ScheduleSchema>;
 
 /**
- * Is this ISO weekday (0=Sun..6=Sat) a scheduled day?
- * null schedule === daily, so everything is scheduled.
- * Weekly goals are "scheduled" every day — quota is handled by streak logic.
+ * Returns whether a weekday (0 = Sunday … 6 = Saturday, as Date.getDay
+ * returns it) is scheduled. A null schedule means daily, so every day is.
+ * Weekly goals count every day as scheduled; their quota is handled by the
+ * streak logic.
  */
 export function isScheduledDay(
   schedule: Schedule | null,
@@ -32,8 +33,8 @@ export function isScheduledDay(
 }
 
 /**
- * Parse arbitrary stored JSON into a Schedule; anything invalid → null (daily).
- * Dedupes + sorts weekdays so stored garbage like [3,1,3] becomes [1,3].
+ * Parses stored JSON into a Schedule, returning null (daily) for anything
+ * invalid. Weekdays are deduped and sorted, so stored [3,1,3] becomes [1,3].
  */
 export function normalizeSchedule(raw: unknown): Schedule | null {
   if (raw && typeof raw === "object" && "type" in raw) {
@@ -61,8 +62,9 @@ export function weekdayShort(weekday: number): string {
 }
 
 /**
- * Next scheduled date key strictly after `fromKeyStr`.
- * Daily/null/weekly → same day (every day is scheduled).
+ * Returns the first scheduled day after `fromKeyStr` for a weekdays
+ * schedule. Daily, weekly and null schedules return `fromKeyStr` itself,
+ * because every day is scheduled.
  */
 export function nextScheduledDayKey(
   schedule: Schedule | null,

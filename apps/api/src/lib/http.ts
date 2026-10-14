@@ -11,14 +11,15 @@ export class HttpError extends Error {
   }
 }
 
+/** Constructors for the HttpErrors the api throws; 401 and 404 have default messages. */
 export const badRequest = (message: string) => new HttpError(400, message);
 export const unauthorized = (message = "Not signed in.") => new HttpError(401, message);
 export const notFound = (message = "Goal not found") => new HttpError(404, message);
 
 /**
- * Reads and validates the request body against a zod schema.
- * Throws HttpError(400) with the first issue's message on any failure —
- * handlers just `const input = await parseBody(c, SomeSchema)`.
+ * Reads and validates the request body against a zod schema, returning the
+ * parsed data. Any failure throws HttpError(400) with the first issue's
+ * message, so a handler needs only `await parseBody(c, SomeSchema)`.
  */
 export async function parseBody<S extends z.ZodTypeAny>(
   c: Context,

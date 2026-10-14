@@ -63,10 +63,11 @@ export interface ToggleButtonStyle {
 }
 
 /**
- * Button render state for a goal card, derived from the check-in state.
- * Single source of truth so dark/light and cadence variants stay in sync —
- * the rest-day checked state MUST render filled (variant "default"),
- * same as the daily toggle (dark-mode bug fixed in PR #9).
+ * Returns how a goal card's check-in button renders for its check-in state.
+ * One function for every cadence keeps light and dark mode in sync. A
+ * checked rest-day button must render filled (variant "default") like the
+ * daily toggle; an outline variant fought the fill color and never looked
+ * checked in dark mode.
  */
 export function toggleButtonStyle(
   state: CardCheckinState,

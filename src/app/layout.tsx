@@ -39,6 +39,7 @@ export const metadata: Metadata = {
   },
 };
 
+/** Renders the html shell: fonts, theme provider, error boundary, and toaster. */
 export default function RootLayout({
   children,
 }: Readonly<{

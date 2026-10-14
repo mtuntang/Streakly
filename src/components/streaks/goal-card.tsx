@@ -47,6 +47,7 @@ interface GoalCardProps {
   onOpenDetail: (goal: GoalDTO) => void;
 }
 
+/** Renders one goal: its streak, check-in button, and edit/delete menu. */
 export function GoalCard({
   goal,
   onToggleToday,
@@ -354,8 +355,7 @@ export function GoalCard({
   );
 }
 
-/** 7-dot this-week row for weekly goals (Sun start, matching buildHeatmap). */
-/** Quota progress dots for weekly goals: one dot per required check-in. */
+/** Renders quota progress dots for a weekly goal: one dot per required check-in. */
 function WeekDots({
   done,
   quota,

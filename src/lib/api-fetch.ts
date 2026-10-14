@@ -1,11 +1,10 @@
 "use client";
 
 /**
- * fetch for the app's data endpoints that treats a 401 as an expired
- * session: it sends the browser to /sign-in instead of handing the
- * caller an error to toast. The returned promise never settles in that
- * case, so no "could not load" toast or retry loop runs while the page
- * navigates away.
+ * Fetches from the app's data endpoints, treating a 401 as an expired
+ * session: it sends the browser to /sign-in instead of handing the caller
+ * an error to show. The returned promise never settles in that case, so no
+ * "could not load" toast or retry loop runs while the page navigates away.
  */
 export async function apiFetch(
   input: RequestInfo | URL,

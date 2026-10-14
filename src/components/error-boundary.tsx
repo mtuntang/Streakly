@@ -14,6 +14,10 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
+/**
+ * Catches render errors below it, logs them, and shows a "Try again" screen
+ * that resets the boundary instead of a blank page.
+ */
 export class ErrorBoundary extends React.Component<
   ErrorBoundaryProps,
   ErrorBoundaryState

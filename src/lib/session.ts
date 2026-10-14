@@ -20,7 +20,7 @@ const signInSchema = z.object({ user: userSchema }).passthrough();
 
 const sessionSchema = z.object({ user: userSchema }).passthrough();
 
-/** Extracts the API's error message; unknown shapes collapse to a generic. */
+/** Returns the API's error message, or a generic one for unknown shapes. */
 async function errorMessage(res: Response): Promise<string> {
   try {
     const body = z
@@ -33,6 +33,7 @@ async function errorMessage(res: Response): Promise<string> {
   }
 }
 
+/** Posts to an auth endpoint and returns the user, or throws the server's message. */
 async function postAuth(
   path: string,
   body: Record<string, string>,
