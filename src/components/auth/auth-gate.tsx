@@ -15,6 +15,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = React.useState<"checking" | "ok" | "error">(
     "checking",
   );
+  // Bumped by Retry; as an effect dependency it re-runs the check.
+  const [attempt, setAttempt] = React.useState(0);
 
   React.useEffect(() => {
     let alive = true;
@@ -33,7 +35,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return () => {
       alive = false;
     };
-  }, [router]);
+  }, [router, attempt]);
 
   if (status === "checking") {
     return (
@@ -49,19 +51,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
         <p className="text-sm text-muted-foreground">
-          Could not reach the server.
+          Could not check your session.
         </p>
         <button
           className="underline"
           onClick={() => {
             setStatus("checking");
-            // Re-run the same effect by remounting via key-less state churn.
-            getSession()
-              .then((session) => {
-                if (session === null) router.replace("/sign-in");
-                else setStatus("ok");
-              })
-              .catch(() => setStatus("error"));
+            setAttempt((n) => n + 1);
           }}
         >
           Retry
