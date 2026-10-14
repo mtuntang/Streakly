@@ -43,7 +43,7 @@ afterAll(async () => {
   psql("DROP DATABASE IF EXISTS streakly_test;");
 });
 
-const { default: app } = await import("../src/index");
+const { app } = await import("../src/app");
 const { createTestApi } = await import("./test-api");
 
 // ── Auth helpers ─────────────────────────────────────────────────────────
