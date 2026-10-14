@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run --hot --env-file=../../.env src/index.ts",
+    "dev": "NODE_ENV=development bun run --hot --env-file=../../.env src/index.ts",
     "start": "bun run --env-file=../../.env src/index.ts",
     "test": "bun test --env-file=../../.env"
   },
