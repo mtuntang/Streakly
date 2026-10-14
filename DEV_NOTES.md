@@ -1,258 +1,331 @@
 # Streakly — Dev Notes
 
-Engineering decisions log: what was decided, why, and what we deliberately did NOT do.
-Maintained as decisions were made; newest sections at the bottom. Pair with PR
-history. Archive: sections >10 PRs old go to `DEV_NOTES-archive.md`; cap 300 lines.
-Prune: review at next hygiene PR.
+This file explains the big decisions behind Streakly in plain words: what we
+chose, why, and what we chose NOT to do. You should be able to read any
+section without having followed the project.
+
+- Every decision has the same shape: **Problem** (what was wrong or
+  needed), **Decision** (what we did), and **Why** (when it isn't obvious).
+- Newest decisions are at the bottom of "Decisions".
+- Each heading ends with the PR where it happened, so you can look up the code.
+- Keep the file under ~350 lines. Move old sections to `DEV_NOTES-archive.md`.
 
 ---
 
-## Project context
+## The app in one paragraph
 
-Principle agreed up front: **ship features first, extract infrastructure between
-features, never mid-feature.** (Stack: README.md; windows: PR #1.)
+Streakly is a habit tracker. You create goals ("run", "read"), check in on the
+days you do them, and the app counts your streak (how many scheduled days in a
+row you kept it up). It is a TypeScript monorepo:
 
----
+- The website (Next.js, at the repo root in `src/`). It holds no data itself.
+- `apps/api` (Hono on Bun): the server. It owns the database (Postgres via
+  Prisma) and login (Better Auth). The website talks to it through a proxy:
+  the browser calls `/api/...` on the website, and the website forwards it.
+- `packages/shared`: plain logic and types both sides use (streak math,
+  schedules, form validation).
 
-## Architecture decisions
-
-### 1. All streak math is server-side, in one shared package
-
-`computeStreaks` lives in `packages/shared/src/streaks.ts` and is called only from
-`loadGoals()` (server). Stats ride `GoalDTO.stats` to the client; client components
-are dumb renderers and never recompute streaks.
-
-**Why:** one source of truth for the only genuinely hard logic. Client-side
-recomputation would drift the moment time zones, "today", or grace rules are
-involved. Enforced by convention (grep call sites before changing the signature).
-
-### 2. Monorepo split before auth (PR #1)
-
-`packages/shared` extracted first, as a pure move (`git mv`, no edits, separate
-commits). Ground rule: shared imports NOTHING outside `date-fns` + `zod` — no
-Prisma, no React, no Next.
-
-**Why:** the shared package is the contract between web and the future api. Purity
-is what makes the api extraction cheap later; purity enforced at extraction time
-is cheaper than refactoring a contaminated package.
-
-**Also learned:** bun does not auto-link workspace packages — the root
-`package.json` must declare `"@streakly/shared": "workspace:*"` or imports fail
-even after `bun install`.
-
-### 3. Schedules stored as a JSON column, validated by zod (PR #2)
-
-`Goal.schedule Json?` holds `null` (= daily, backward-compatible default) or
-`{ type: "daily" } | { type: "weekdays", days: [0..6] } | { type: "weekly", timesPerWeek: 1..7 }`.
-
-**Why JSON over columns:** one migration, one zod gate, discriminated-union shape
-in TypeScript. No DB-level validation — acceptable at this scale; invalid stored
-JSON is normalized to `null` on read (`normalizeSchedule`, which also dedupes/sorts
-weekday arrays).
-
-**Weekly quota semantics (the hard call):** a weekly goal's streak counts
-consecutive weeks whose quota was MET. A missed day only breaks the streak once
-that week's quota is mathematically unreachable; once met, remaining days of the
-week neither count nor break. Weeks start Sunday (matches the heatmap). Strict
-per-day weekly was rejected — it defeats the purpose of a flexible quota.
-
-**Grace rule (daily/weekdays):** an unchecked *scheduled* day kills the chain, but
-the chain stays alive through today if the most recent scheduled day was checked
-(today included as grace). Unscheduled days are transparent: they neither build
-nor break the chain.
-
-### 4. Backward compatibility is a gate, not a hope
-
-Every extension of `StreakStats` is additive with defaults, locked by a
-regression test written BEFORE the change and kept green through every task.
-Example (PR #7): `unit: "day"` + optional `week` — daily/weekdays goals return
-the exact old shape, proven by a shape-lock test (verified: `packages/shared/src/streaks.test.ts` — green).
-
-**Why:** it converts "should be backward compatible" from a hope into a CI-failing
-fact.
-
-### 5. TDD per task, red→green, commit per green task
-
-Feature work follows: failing tests first (proving the harness and the gap), then
-minimal implementation, then commit. The daily-regression suite is always written
-first. Gates before any PR: `bunx tsc --noEmit` → `bun run lint` → `bun test` →
-`npm run build` (npm, not bun, for builds on this Windows setup).
-
-### 6. Card render state derives from one shared helper (PRs #7–#9)
-
-`cardCheckinState(schedule, stats, now)` in `packages/shared/src/card-state.ts`
-returns a discriminated union (`{ kind: "checkin", brokenStreak, urgency }` |
-`{ kind: "rest", nextDayShort }`). Card and detail sheet branch on it; they cannot
-disagree.
-
-**Why here and not in schedule.ts:** `schedule.ts` already imports from
-`streaks.ts`; a new `card-state.ts` avoided deepening the import cycle.
-
-`toggleButtonStyle(state, doneToday)` similarly derives the check-in button's
-render contract (`variant` / `dashed` / `filled`) for ALL cadences. Born from a
-real dark-mode bug: the rest-day checked button kept `variant="outline"` and its
-outline classes fought the goal-color fill, so the button never looked "checked"
-in dark mode. The fix (flip to `variant="default"` when checked) is now locked by
-tests, including an equality test that checked-state rendering is identical for
-rest days and normal days.
-
-### 7. String literal unions and `as const` objects over TS enums
-
-`CardUrgency`, `CardCheckinState.kind`, `Schedule.type`, `StreakUnit` are all
-string literal unions. TS enums are deliberately not used.
-
-**The reasoning chain:**
-
-- Compile-time safety is identical (exhaustiveness, typo rejection).
-- No type survives `JSON.stringify` — `JSON.parse` returns `any`, so the wire
-  always delivers untyped words. Enums provide no runtime guard; they just make
-  the any-cast feel safe. Safety at boundaries comes from runtime validation
-  (zod), which validates literal unions natively and shares the type's source of
-  truth.
-- TS enums carry runtime machinery (reverse mappings, `const enum` breaking under
-  transpile-only builds like bun/esbuild) for zero added safety.
-- One idiom per codebase beats two. The repo standardized on unions + zod.
-- When the set of values is needed at runtime (list/iterate/map to labels), use
-  `as const` objects — same namespacing, JSON-safe, no build traps.
-
-Related vocabulary that shaped practice: the parse-then-cast antipattern, unsound
-assertions ("type laundering"), and the rule that `as` on deserialized data is a
-promise, not a check.
-
-### 8. Voluntary rest-day check-ins (PR #8)
-
-Users may check in on non-scheduled days ("did it anyway"). Semantics:
-
-- Counts toward `total` and renders on the heatmap.
-- Does NOT grow `current`/`longest` — rest days stay transparent in the chain.
-- Cannot resurrect a dead chain.
-- `doneToday` is now simply "checked today", scheduled or not (one-line change in
-  `computeStreaks`; the streak-walk logic already treated unscheduled days as
-  transparent, so nothing else moved).
-- The API 400 gate on check-in POSTs for unscheduled days was removed.
-- UI: the rest-day button is enabled and dashed ("Do it anyway (Rest Day - back
-  Mon)"); once checked it reads "Checked in on a rest day" so the user knows it
-  did not advance the streak.
-
-**Why:** the app should not refuse real effort. The alternative (disabled toggle)
-hid data users wanted to give. Initially backlogged because it changes
-`doneToday` semantics; shipped as a contained follow-up once the card-behavior
-work landed.
-
-### 9. Heatmap: binary, uniform, no legend (PR #9)
-
-- Check-ins are yes/no — the Less→More intensity legend was fiction and was
-  removed.
-- All unchecked cells are one gray (`bg-foreground/15` light / `bg-muted/40`
-  dark). The earlier rest-day dimming (`opacity-25`) was removed once voluntary
-  check-ins shipped: the cadence badge already communicates the schedule, and the
-  heatmap re-encoding it read as a rendering bug. The heatmap no longer takes a
-  `schedule` prop.
-- Weekly goals show **quota progress dots** — one dot per required check-in
-  (filled in the goal color, remaining muted) — not a 7-day Sun–Sat row. The
-  quota IS the week; showing 7 weekday dots implied the wrong contract.
-
-### 10. Naming: say what it does, not the jargon
-
-- `cardStatusMessage()` (was `streakCopy`): it produces the card's status line for
-  every state — rest day, completed, alive, broken, fresh — not just the streak.
-- Avoided "copy" (frontend jargon for user-facing text) in favor of "message":
-  clearer to non-native readers and not confusable with "duplicate".
-
-### 11. Copy honesty as a product rule
-
-The card never reuses empty-state copy for broken states: a goal that HAD a
-streak and lost it shows "Streak broken — start again today", never "No active
-streak yet". Same stats, different meaning. Voluntary check-ins get distinct
-wording so users always know what counted.
-
-### 12. Residue hygiene (PR #10)
-
-Deleted tracked template artifacts (`.zscripts/`, `mini-services/`, `download/`,
-`Caddyfile`, stale npm `package-lock.json` — bun.lock is the single lockfile) and
-untracked `.hermes/` (planning docs stay local). Rationale: root clutter reads as
-unfinished thinking, and dead weight accumulates by default — the repo has run
-two prune rounds (34 unused shadcn components, 38 deps, stale lib copies) plus
-this root cleanup. Shadcn components are one `npx shadcn add <x>` away; hoarding
-them cost ~60% of the repo in dead lines once.
-
-### 13. Commit & PR hygiene
-
-- One commit = one logical change; conventional prefixes (`feat:`, `fix:`,
-  `chore:`, `refactor:`, `test:`); body only when the why isn't obvious.
-- Squash-merge features so main reads as a changelog; per-commit detail lives in
-  the PR.
-- PR bodies stay brief: what changed + a "how to verify" checklist with exact
-  commands.
-- Chores get their own PRs, never ride feature branches.
-- After merge: sync main, delete local + remote feature branches.
-
-### 14. Windows/ tooling quirks (recorded so they don't bite twice)
-
-- `npm run build` for builds (bun's build path breaks on this setup); bun for
-  everything else (test, install, dev).
-- Kill dev servers by port (`netstat` + `taskkill /PID <pid> /T /F` with
-  `MSYS_NO_PATHCONV=1`), not by name; a half-dead server holds :3000 while
-  serving nothing (curl 000 + LISTENING = kill and relaunch).
-- Dev-server readiness is verified with curl, never by trusting log files.
+Ground rule: **finish a feature before moving infrastructure around, never in
+the middle of one.**
 
 ---
 
-## What we deliberately did NOT do (and why)
+## Decisions
 
-- **No CSS/DOM testing rig.** Button/state decision logic is extracted into
-  shared pure functions and unit-tested; rendered pixels are verified by
-  human screenshot on each UI PR. A jsdom/testing-library setup is a known gap,
-  not an oversight — deferred until UI complexity justifies the rig.
-- **No Postgres/JSON schema validation in the DB yet.** The JSON schedule column
-  is zod-validated at write time and normalized on read. Proper DB-level
-  constraints arrive with the Postgres migration.
-- **No auth until the api split.** Bolt auth onto Next.js route handlers now and
-  it would have to move twice.
-- **No TS enums.** See decision 7.
+### 1. Streaks are calculated in one place only, on the server
+
+**Problem:** streak math is the hardest logic in the app ("what is today?",
+time zones, grace days). If the website and the server each had a copy,
+the two copies would slowly start giving different answers.
+
+**Decision:** the math (`computeStreaks` in `packages/shared/src/streaks.ts`)
+runs only on the server. The browser receives finished numbers in
+`GoalDTO.stats` and only displays them. Before changing its signature,
+search for every place that calls it.
+
+### 2. A shared package with strict rules (PR #1)
+
+**Problem:** the website and the server need the same logic and types, but
+code that imports React or the database can't run on both sides.
+
+**Decision:** `packages/shared` may only import `date-fns` and `zod`. No
+database, no React, no Next.js. It was split out as a pure file move, with
+no edits mixed in.
+
+**Why:** a package with no framework code can be used by either side
+without dragging the other along.
+
+**Gotcha:** bun does not link workspace packages automatically. The root
+`package.json` must list `"@streakly/shared": "workspace:*"`, or imports fail.
+
+### 3. A goal's schedule is one JSON field, checked by zod (PR #2)
+
+**Problem:** goals needed schedules beyond "every day": chosen weekdays, or
+"N times a week".
+
+**Decision:** `Goal.schedule` is one JSON field holding one of:
+
+- `null` or `{ type: "daily" }`: every day
+- `{ type: "weekdays", days: [0..6] }`: chosen days (0 = Sunday)
+- `{ type: "weekly", timesPerWeek: 1..7 }`: any N days per week
+
+**Why JSON:** one field, one validation rule, and the TypeScript type matches
+it exactly. The database doesn't check the JSON. zod checks it when it is
+written, and bad stored values are treated as daily.
+
+**How weekly streaks work:** a weekly goal counts weeks, not days. A week
+counts if you hit the quota. A missed day only breaks the streak once the
+quota can no longer be reached that week. Weeks start on Sunday.
+
+**Grace rule (daily/weekdays):** missing a scheduled day breaks the streak,
+but today doesn't count against you until it's over. Days off your schedule
+neither add to nor break the streak.
+
+### 4. New fields never break old behavior (PR #7)
+
+**Problem:** `StreakStats` keeps growing (weekly goals needed new fields).
+Every change risks quietly changing what existing daily goals return.
+
+**Decision:** new fields get defaults (`unit: "day"`, optional `week`), and
+a test that pins the OLD shape is written first and must stay green.
+
+**Why:** it turns "this should still work" into a test that fails if it
+doesn't.
+
+### 5. Tests first, one commit per passing step
+
+**Problem:** without a fixed routine, a change gets "done" without proof it
+works.
+
+**Decision:** write a failing test, make it pass with the smallest change,
+commit. Before any PR, run: `bunx tsc --noEmit` → `bun run lint` →
+`bun test` → `npm run build` (use npm, not bun, for builds on this Windows
+machine).
+
+### 6. One helper decides how a goal card looks (PRs #7–#9)
+
+**Problem:** if the goal card and the detail panel each worked out on their
+own whether a goal is on a rest day, at risk, or broken, they could
+disagree. Separately, a real dark-mode bug made a checked rest-day button
+never look checked.
+
+**Decision:** `cardCheckinState()` (in `packages/shared/src/card-state.ts`)
+decides the card's mode once, and both views use it. `toggleButtonStyle()`
+does the same for the check-in button's look; tests lock the dark-mode fix.
+
+### 7. Plain string types instead of TypeScript enums
+
+**Problem:** we need types for fixed sets of values, like
+`"normal" | "quota-at-risk"`. TypeScript offers two ways: string unions and
+`enum`.
+
+**Decision:** string unions everywhere. When the list of values is needed at
+runtime, use an `as const` object.
+
+**Why:** the compiler catches typos in both, so enums add no safety. Network
+data arrives as plain strings either way; zod is what actually checks it.
+Enums also add hidden runtime code, and `const enum` breaks with fast build
+tools like bun.
+
+### 8. You can check in on a rest day (PR #8)
+
+**Problem:** on a day off its schedule (say, Saturday for a Mon–Fri goal),
+the check-in button was disabled, so the app refused real effort.
+
+**Decision:** allow it, but keep it honest:
+
+- It counts toward your total and shows on the heatmap.
+- It does NOT grow your streak, and it can't restart a broken one.
+- The button is dashed and says "Checked in on a rest day", so you know it
+  didn't count toward the streak.
+
+### 9. The heatmap is simple: done or not done (PR #9)
+
+**Problem:** the heatmap suggested more than the data holds. It had a
+"Less → More" legend, but a day is only ever checked or not. It also dimmed
+rest days, which looked like a rendering bug.
+
+**Decision:**
+
+- Two states only: checked or unchecked. The legend is gone.
+- Every unchecked day is the same gray. The goal's schedule badge already
+  says which days are rest days.
+- Weekly goals show one dot per required check-in instead of 7 day-dots,
+  because a weekly goal is about the count, not the days.
+
+### 10. Names say what things do
+
+**Problem:** `streakCopy` built the card's whole status line, not just
+streak text. And "copy" is design jargon that also sounds like "duplicate".
+
+**Decision:** renamed it `cardStatusMessage()`. Names describe what the code
+returns or does, not jargon.
+
+### 11. Text never misleads
+
+**Problem:** a goal that lost its streak and a brand-new goal both have zero
+current days. Showing "No active streak yet" for both is wrong for the
+first one.
+
+**Decision:** a lost streak says "Streak broken — start again today". Same
+numbers, different meaning, different text.
+
+### 12. Delete what you don't use (PR #10)
+
+**Problem:** unused files pile up: 34 unused UI components, 38 unused
+packages, stray copies of shared files, and old template folders.
+
+**Decision:** delete them. UI components come back with one command
+(`npx shadcn add <name>`), so there's no reason to keep unused ones.
+
+### 13. How commits and PRs are done
+
+**Problem:** history is only useful if each entry is easy to read.
+
+**Decision:**
+
+- One commit = one change, with a prefix: `feat:`, `fix:`, `refactor:`,
+  `test:`, `chore:`, `docs:`.
+- PRs are squash-merged, so `main` reads like a changelog.
+- PR descriptions: what changed, plus a checklist of commands to verify it.
+- Cleanup work gets its own PR, never mixed into a feature.
+- After a merge, delete the branch locally and on GitHub.
+
+### 14. Windows quirks (so they don't bite twice)
+
+**Problem:** some tools behave differently on this Windows machine and
+waste time when forgotten.
+
+**Decision:**
+
+- Build with `npm run build`; use bun for everything else.
+- A stuck dev server can keep its port while serving nothing. Stop it by
+  port, not by name: find the process id with `netstat`, then
+  `MSYS_NO_PATHCONV=1 taskkill /PID <id> /T /F`.
+- Check that a server is up with `curl`, not by reading its log file.
+
+### 15. Database ids are UUIDs made by Postgres (PR #19)
+
+**Problem:** goals and check-ins need ids. With a Postgres `uuid` column, a
+badly formed id in a URL makes the database throw an error, which would
+show up as a 500 crash.
+
+**Decision:** ids are real Postgres `uuid` values that the database
+generates, and the server checks an id's format first, so a bad one
+returns 404 (not found).
+
+**Not yet:** the browser doesn't create ids itself. That changes with offline
+mode (roadmap item 5).
+
+### 16. Every goal belongs to one user (PR #20)
+
+**Problem:** once the app has several users, nobody should be able to see or
+change anyone else's goals.
+
+**Decision:** goals have a `userId`, and every database query includes it.
+Someone else's goal answers 404 (not found), never 403 (forbidden).
+
+**Why 404:** a 403 would confirm that the goal exists. A 404 reveals nothing.
+
+### 17. Signing in on the website (PR #23)
+
+**Problem:** the website had no sign-in screen, and a few settings could
+quietly make login unsafe.
+
+**Decision:**
+
+- **The server refuses to start with unsafe settings.** Outside development
+  and tests, it needs a secret key of 32+ characters (`BETTER_AUTH_SECRET`)
+  and its public address (`BETTER_AUTH_URL`). Without the key, Better Auth
+  would use a publicly known default, and anyone could fake a login.
+- **The password minimum only applies when creating an account.** Sign-in
+  accepts any length, so raising the minimum later won't lock people out.
+- **"Logged out" and "server unreachable" are handled differently.** Logged
+  out → go to the sign-in page. Can't reach the server → show a Retry
+  button. A network hiccup never logs you out.
+- **If your session expires mid-use,** the next request sends you to the
+  sign-in page instead of showing error messages (`apiFetch`).
+
+### 18. The api's entry file must not default-export the app (PR #24)
+
+**Problem:** every website page showed "404 Not Found", while `/api` calls
+still worked. Bun automatically starts a web server for any entry file whose
+default export has a `fetch` function, on port 3000. The api's `index.ts`
+did exactly that, so it took the website's port.
+
+**Decision:** the app now lives in `apps/api/src/app.ts` as a named export
+(`{ app }`). `index.ts` only starts the server on port 4000. Tests and the
+seed script import from `app.ts`.
+
+### 19. Two login settings were silently not working (PR #26)
+
+**Problem 1:** sign-in from the website was rejected in development.
+Better Auth only accepts login requests coming from its own site; this
+stops other sites from making requests while you're logged in (called CSRF
+protection). It learns "its own site" from `BETTER_AUTH_URL`, which wasn't
+set. So it guessed from the forwarded request (`localhost:4000`, the api),
+while the browser said the request came from `localhost:3000` (the
+website). Every login looked like an attack. Tests missed it because Better
+Auth turns this check off during tests by default.
+
+**Decision 1:** set `BETTER_AUTH_URL` to the address people type in their
+browser (dev: `http://localhost:3000`), never the api's internal address.
+The check is now on in tests too.
+
+**Problem 2:** the limit on login attempts (5 per minute) wasn't applied.
+The setting was named `specialRules`, which Better Auth doesn't have, so it
+was skipped without any error.
+
+**Decision 2:** use the real name, `customRules`. A test pins the setting.
+
+**Lesson:** some libraries ignore a misspelled option without any error.
+After changing a security setting, test the real behavior (send the
+requests, watch for the block), not just whether the code compiles.
 
 ---
 
-## Planned Postgres schema (target state, not yet written)
+## Things we chose NOT to do (for now)
 
-Postgres 16 via `docker-compose.yml` (`docker compose up -d`, port 5432, pgdata
-volume). Schema flip is SQLite → `provider = "postgresql"`; no data migration —
-demo data re-seeds via `bun run db:seed`.
-
-- **Better Auth adds 4 tables** (auth library owns them): `user` (id, email
-  unique, name, emailVerified, timezone — IANA zone captured at signup),
-  `session` (token unique, expiresAt), `account` (providerId + accountId
-  unique composite; password hash for email/password), `verification`.
-- **App tables gain ownership:** `Goal.userId` FK → user, `ON DELETE CASCADE`;
-  `CheckIn` has NO userId — ownership flows through the goal (one query chain:
-  session user → goal → check-in). `UNIQUE(goalId, date)` unchanged — it is the
-  check-in toggle-race guard.
-- **BCNF note:** timezone lives on `user` only, never copied onto `goal`
-  (goalId → userId → timezone would be a transitive dependency, a 3NF/BCNF
-  violation). Single source of truth.
-- **Type upgrades from SQLite:** `CheckIn.date` String → `DateTime @db.Date`
-  (api converts Date ↔ "YYYY-MM-DD" at the boundary so the DTO and shared
-  streak math are untouched); `schedule` Json → jsonb. Migration order: schema
-  flip + date handling first (one small PR), Better Auth after (it wants
-  `prisma migrate` history).
+- **No browser-rendering tests.** Display logic lives in small functions that
+  have unit tests. How it actually looks is checked by screenshot.
+- **No database rules for the schedule JSON.** zod checks it on write.
+- **No enums.** See decision 7.
+- **No separate profiles or organizations.** One person = one account = one
+  way to log in.
 
 ---
 
-## Roadmap (agreed sequence)
+## How data is stored
 
-1. **NEXT: Monorepo Step 2 — `apps/api` (Hono) owns the DB; web becomes
-   HTTP-only.** Design drafted (see `.hermes/plans/2026-09-11_design-backend.md`):
-   request → zod (shared schema) → Prisma → `computeStreaks` (`packages/shared/src/streaks.ts`) → `GoalDTO`.
-   Three PRs: skeleton, route migration (fix `loadGoals` in `streaks.ts`: loads entire
-   goal set; narrow to per-goal query), web cutover. **(DONE — PRs #14, #17, #18,
-   #19: api extraction, Postgres on docker compose, Better Auth plumbing, uuid ids.)**
-2. Postgres migration **(DONE — PR #17)**.
-3. Better Auth + userId scoping. Plumbing **(IN REVIEW — PR #18)**; scoping PR next,
-   then web session UI. Decision: one person = one user (no profiles; see auth notes).
-4. Stripe (subscriptions; post-MVP).
-5. PWA + **offline caching**: service worker caches shell + read data; writes made
-   offline are queued client-side with CLIENT-GENERATED ids (uuid v7) and replayed on
-   reconnect — this is the trigger for app-side id generation and the v7 upgrade
-   (pg 18 `uuidv7()`, drop-in). Conflict policy: per-check-in idempotency makes
-   check-ins merge-safe; text edits last-write-wins. Later Expo/mobile inherits the
-   same sync layer.
+Postgres 16, started with `docker compose up -d` (port 5432). Demo data:
+`bun run db:seed`.
+
+- **Login tables** (owned by Better Auth): `user`, `session`, `account` (the
+  password lives here, not on the user), `verification`.
+- **App tables:** `goals` belong to a user (deleting the user deletes their
+  goals). `check_ins` belong to a goal and have no `userId` of their own:
+  ownership goes user → goal → check-in. One check-in per goal per day (a
+  unique rule), which also makes a double-click harmless.
+- **Time zone** is stored once, on the user (the column exists; filling it in
+  at sign-up is the next task). It is never copied onto goals, so there is
+  only one place to change it.
+- **Dates:** a check-in's date is a plain calendar date (`date` column). The
+  server converts it to and from `"YYYY-MM-DD"` text.
+
+---
+
+## Roadmap
+
+1. Split the server out of the website (`apps/api` owns the data).
+   **DONE** (PRs #14, #17, #18, #19).
+2. Move from SQLite to Postgres. **DONE** (PR #17).
+3. Accounts and login, with each user seeing only their own goals.
+   **DONE** (PRs #18, #20, #22, #23; fixes in #26).
+   **NEXT:** save the user's time zone at sign-up. The real work is testing
+   the daylight-saving switches (the spring-forward and fall-back days).
+4. Payments with Stripe (after launch).
+5. Installable app that works offline (PWA). Changes made offline are stored
+   in the browser and sent when back online. This is when the browser starts
+   creating ids itself (uuid v7). Check-ins merge safely, since there's one
+   per day; for text edits, the last save wins. A mobile app (Expo) would
+   reuse this later.
