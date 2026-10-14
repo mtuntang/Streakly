@@ -27,6 +27,18 @@ import { authenticateSession, type AuthEnv } from "../lib/auth";
 // foreign goals throw HttpError(404) from the lib functions. app.onError
 // (app.ts) turns those into JSON responses.
 
+/**
+ * Loads one of the user's goals, or throws 404 when it is missing or foreign.
+ * Handlers use it for every response that returns a goal, including the
+ * re-read after a write: if the goal was deleted in between, the client gets
+ * a 404 instead of a 200 with a null body.
+ */
+async function loadGoalOrThrow(userId: string, id: string) {
+  const goal = await loadGoal(userId, id);
+  if (!goal) throw notFound();
+  return goal;
+}
+
 /** GET /goals — list the signed-in user's goals with computed streak stats. */
 async function listGoals(c: Context<AuthEnv>) {
   return c.json(await loadGoals(c.get("userId")));
@@ -50,9 +62,7 @@ async function reorderGoalsRoute(c: Context<AuthEnv>) {
 
 /** GET /goals/:id — one goal. Another user's id reads as missing (404). */
 async function getGoalRoute(c: Context<AuthEnv>) {
-  const goal = await loadGoal(c.get("userId"), c.req.param("id")!);
-  if (!goal) throw notFound();
-  return c.json(goal);
+  return c.json(await loadGoalOrThrow(c.get("userId"), c.req.param("id")!));
 }
 
 /** PATCH /goals/:id — update goal fields, returns the updated DTO. */
@@ -61,7 +71,7 @@ async function updateGoalRoute(c: Context<AuthEnv>) {
   const id = c.req.param("id")!;
   const input = await parseBody(c, UpdateGoalSchema);
   await updateGoal(userId, id, input);
-  return c.json(await loadGoal(userId, id));
+  return c.json(await loadGoalOrThrow(userId, id));
 }
 
 /** DELETE /goals/:id — permanently remove a goal and its check-ins. */
@@ -74,29 +84,27 @@ async function deleteGoalRoute(c: Context<AuthEnv>) {
 async function toggleCheckInRoute(c: Context<AuthEnv>) {
   const userId = c.get("userId");
   const id = c.req.param("id")!;
-  const goal = await loadGoal(userId, id);
-  if (!goal) throw notFound();
+  await loadGoalOrThrow(userId, id);
 
   const { date } = await parseBody(c, CheckInBodySchema);
   const dateKey = date ?? toKey(new Date());
 
   const checked = await toggleCheckIn(userId, id, dateKey);
-  return c.json({ checked, goal: await loadGoal(userId, id) });
+  return c.json({ checked, goal: await loadGoalOrThrow(userId, id) });
 }
 
 /** DELETE /goals/:id/checkins — remove a check-in (?date=YYYY-MM-DD, defaults to today). */
 async function removeCheckInRoute(c: Context<AuthEnv>) {
   const userId = c.get("userId");
   const id = c.req.param("id")!;
-  const goal = await loadGoal(userId, id);
-  if (!goal) throw notFound();
+  await loadGoalOrThrow(userId, id);
 
   const parsed = DateKeySchema.safeParse(c.req.query("date") ?? toKey(new Date()));
   if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
   const date = parsed.data;
 
   await removeCheckIn(userId, id, date);
-  return c.json({ checked: false, goal: await loadGoal(userId, id) });
+  return c.json({ checked: false, goal: await loadGoalOrThrow(userId, id) });
 }
 
 // ── Route table ─────────────────────────────────────────────────────────
