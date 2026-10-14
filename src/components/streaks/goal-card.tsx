@@ -128,7 +128,7 @@ export function GoalCard({
             variant="ghost"
             size="icon"
             className="h-6 w-10 cursor-grab touch-none text-muted-foreground/60 hover:text-muted-foreground active:cursor-grabbing"
-            aria-label="Drag to reorder"
+            aria-label={`Drag to reorder ${goal.name}`}
             {...attributes}
             {...listeners}
           >
@@ -171,7 +171,7 @@ export function GoalCard({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 shrink-0 text-muted-foreground"
-                    aria-label="Goal actions"
+                    aria-label={`Actions for ${goal.name}`}
                   >
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
@@ -317,7 +317,7 @@ export function GoalCard({
           <button
             onClick={() => onOpenDetail(goal)}
             className="mt-4 w-full overflow-x-auto text-left"
-            aria-label="View full history"
+            aria-label={`View full history for ${goal.name}`}
           >
             <Heatmap
               dateKeys={goal.checkIns.map((c) => c.date)}
