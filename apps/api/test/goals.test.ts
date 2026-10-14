@@ -18,6 +18,8 @@ const TEST_DB_URL =
   "postgresql://streakly:streakly@localhost:5432/streakly_test";
 // Resolved relative to prisma/schema.prisma → the throwaway test database.
 process.env.DATABASE_URL = TEST_DB_URL;
+// A timezone west of UTC: date bugs that hide on UTC servers show up here.
+process.env.TZ = "America/Los_Angeles";
 (process.env as Record<string, string>).NODE_ENV = "test";
 
 const psql = (sql: string) =>
@@ -155,6 +157,14 @@ describe("goals api", () => {
     const res = await api.goals.uncheck(createdId);
     expect(res.status).toBe(200);
     expect((await res.json()).checked).toBe(false);
+  });
+
+  it("a check-in reads back on the same date it was saved", async () => {
+    const api = createTestApi(app, await cookieFor(USERS.alice));
+    const res = await api.goals.toggle(createdId, { date: "2026-10-14" });
+    const { goal } = await res.json();
+    expect(goal.checkIns.map((c: { date: string }) => c.date)).toContain("2026-10-14");
+    await api.goals.uncheck(createdId, "2026-10-14");
   });
 
   it("PATCH /goals/reorder reorders goals", async () => {

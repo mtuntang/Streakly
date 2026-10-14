@@ -3,7 +3,6 @@ import { db } from "../db";
 import {
   computeStreaks,
   normalizeSchedule,
-  toKey,
   DEFAULT_COLOR,
   DEFAULT_ICON,
   type GoalDTO,
@@ -62,9 +61,8 @@ async function loadGoalRow(userId: string, id: string): Promise<GoalRow | null> 
 
 /** Maps a Prisma goal row (with check-ins) to the wire contract. */
 export function toGoalDTO(goal: GoalRow): GoalDTO {
-  // Postgres date columns come back as JS Dates (UTC midnight); the wire
-  // contract and streak math run on "YYYY-MM-DD" civil-day strings.
-  const checkIns = goal.checkIns.map((c) => ({ date: toKey(c.date) }));
+  // The wire contract and streak math run on "YYYY-MM-DD" civil-day strings.
+  const checkIns = goal.checkIns.map((c) => ({ date: fromDayDate(c.date) }));
   const schedule = normalizeSchedule(goal.schedule);
   return {
     id: goal.id,
@@ -213,11 +211,20 @@ async function requireOwnedGoal(userId: string, id: string): Promise<GoalRow> {
 
 /**
  * Converts a "YYYY-MM-DD" civil-day key to a Date for Prisma @db.Date.
- * new Date("YYYY-MM-DD") is UTC midnight, so the round-trip through toKey
- * is lossless.
+ * new Date("YYYY-MM-DD") is UTC midnight, which Prisma stores as that day.
  */
 function toDayDate(dateKey: string): Date {
   return new Date(dateKey);
+}
+
+/**
+ * Converts a Prisma @db.Date value back to its "YYYY-MM-DD" key. Postgres
+ * returns the day as UTC midnight, so the key must be read in UTC: the
+ * local-time toKey would turn 2026-10-14 into 2026-10-13 on any server west
+ * of UTC.
+ */
+function fromDayDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
 }
 
 /**
