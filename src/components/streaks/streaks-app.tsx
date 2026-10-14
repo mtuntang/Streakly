@@ -14,7 +14,7 @@ import {
   arrayMove,
   rectSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Flame, Plus, RefreshCw } from "lucide-react";
+import { Flame, LogOut, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { StatsBar } from "./stats-bar";
@@ -24,6 +24,7 @@ import { GoalDetailSheet } from "./goal-detail-sheet";
 import { EmptyState } from "./empty-state";
 import { todayKey, type GoalDTO } from "@streakly/shared";
 import { useToast } from "@/hooks/use-toast";
+import { signOut } from "@/lib/session";
 
 export function StreaksApp() {
   const { toast } = useToast();
@@ -98,6 +99,17 @@ export function StreaksApp() {
   function handleCreate() {
     setEditingGoal(null);
     setFormOpen(true);
+  }
+
+  // Clears the session cookie and returns to the login screen; local
+  // state is dropped with the navigation, nothing else to clean up.
+  async function handleSignOut() {
+    try {
+      await signOut();
+      window.location.href = "/sign-in";
+    } catch {
+      toast({ title: "Could not sign out", variant: "destructive" });
+    }
   }
 
   function handleEdit(goal: GoalDTO) {
@@ -236,6 +248,15 @@ export function StreaksApp() {
               />
             </Button>
             <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
+              onClick={handleSignOut}
+              aria-label="Sign out"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
             <Button onClick={handleCreate} size="sm" className="gap-1.5">
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">New goal</span>
