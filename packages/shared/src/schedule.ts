@@ -36,15 +36,10 @@ export function isScheduledDay(
 
 /**
  * Parses stored JSON into a Schedule, returning null (daily) for anything
- * invalid. Weekdays are deduped and sorted, so stored [3,1,3] becomes [1,3].
+ * invalid. The schema dedupes and sorts weekdays, so stored [3,1,3] comes
+ * back as [1,3] without changing the caller's object.
  */
 export function normalizeSchedule(raw: unknown): Schedule | null {
-  if (raw && typeof raw === "object" && "type" in raw) {
-    const obj = raw as { type: string; days?: unknown };
-    if (obj.type === "weekdays" && Array.isArray(obj.days)) {
-      obj.days = [...new Set(obj.days as number[])].sort((a, b) => a - b);
-    }
-  }
   const parsed = ScheduleSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
 }

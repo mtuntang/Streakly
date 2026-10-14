@@ -46,6 +46,11 @@ describe("schedule", () => {
       days: [1, 3],
     });
   });
+  it("normalizeSchedule leaves its input untouched", () => {
+    const raw = { type: "weekdays", days: [3, 1, 3] };
+    expect(normalizeSchedule(raw)).toEqual({ type: "weekdays", days: [1, 3] });
+    expect(raw.days).toEqual([3, 1, 3]);
+  });
   it("normalizeSchedule keeps valid weekly", () => {
     expect(normalizeSchedule({ type: "weekly", timesPerWeek: 4 })).toEqual({
       type: "weekly",
