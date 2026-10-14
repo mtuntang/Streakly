@@ -48,7 +48,9 @@ export function cardCheckinState(
     return { kind: "rest", nextDayShort: weekdayShort(now.getDay()) };
   }
 
-  const broken = !stats.active && stats.total > 0;
+  // "Broken" needs a streak that once existed. Check-ins on rest days alone
+  // raise total but never build a streak, so they don't count here.
+  const broken = !stats.active && stats.longest > 0;
   return { kind: "checkin", brokenStreak: broken, urgency: "normal" };
 }
 
