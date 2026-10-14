@@ -8,6 +8,11 @@ import {
 } from "./schedule";
 
 describe("schedule", () => {
+  it("schema stores each weekday once, sorted", () => {
+    const parsed = ScheduleSchema.parse({ type: "weekdays", days: [5, 1, 1, 1] });
+    expect(parsed).toEqual({ type: "weekdays", days: [1, 5] });
+    expect(cadenceLabel(parsed)).toBe("Mon Fri");
+  });
   it("daily is scheduled every day", () => {
     for (let d = 0; d < 7; d++) {
       expect(isScheduledDay({ type: "daily" }, d)).toBe(true);

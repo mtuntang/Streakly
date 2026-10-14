@@ -6,10 +6,12 @@ export const ScheduleSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("daily") }),
   z.object({
     type: z.literal("weekdays"),
+    // Each weekday once, in order: [5, 1, 1] is stored as [1, 5].
     days: z
       .array(z.number().int().min(0).max(6))
       .min(1)
-      .max(7),
+      .max(7)
+      .transform((days) => [...new Set(days)].sort((a, b) => a - b)),
   }),
   z.object({
     type: z.literal("weekly"),
