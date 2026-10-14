@@ -45,6 +45,9 @@ export function StreaksApp() {
     }),
   );
 
+  // Goal ids with a check-in request in flight (see handleToggleToday).
+  const togglesInFlight = React.useRef(new Set<string>());
+
   const fetchGoals = React.useCallback(
     async (silent = false, retries = 2) => {
       if (!silent) setLoading(true);
@@ -190,10 +193,15 @@ export function StreaksApp() {
   }
 
   async function handleToggleToday(goal: GoalDTO) {
+    // The endpoint is a toggle, so a second click while the first request is
+    // in flight would undo it. Ignore clicks until the goal's request settles.
+    if (togglesInFlight.current.has(goal.id)) return;
+    togglesInFlight.current.add(goal.id);
     // Read the date at click time: a tab left open past midnight must check
     // in for the new day, not the day the page last rendered.
     const today = todayKey();
-    // Optimistic update.
+    // Optimistic update: flip doneToday too, because the card's button reads
+    // it, so the click shows at once instead of when the server replies.
     const wasDone = goal.stats.doneToday;
     setGoals((prev) =>
       prev.map((g) => {
@@ -201,7 +209,7 @@ export function StreaksApp() {
         const checkIns = wasDone
           ? g.checkIns.filter((c) => c.date !== today)
           : [...g.checkIns, { date: today }];
-        return { ...g, checkIns };
+        return { ...g, checkIns, stats: { ...g.stats, doneToday: !wasDone } };
       }),
     );
 
@@ -233,6 +241,8 @@ export function StreaksApp() {
         title: "Could not check in",
         variant: "destructive",
       });
+    } finally {
+      togglesInFlight.current.delete(goal.id);
     }
   }
 
