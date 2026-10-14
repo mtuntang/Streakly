@@ -58,12 +58,15 @@ const samples = [
 
 
 /**
- * Creates the demo user through the real sign-up endpoint and returns its
- * id. It throws if the user already exists, so it is only safe on an empty
- * database; main calls it only when there are no goals yet. The app is
- * imported here, so the runner must load env first.
+ * Returns the demo user's id, creating the user through the real sign-up
+ * endpoint if it doesn't exist yet. Reusing an existing user lets the seed
+ * rerun after goals were deleted. The app is imported here, so the runner
+ * must load env first.
  */
 async function ensureDemoUser(): Promise<{ id: string }> {
+  const existing = await db.user.findUnique({ where: { email: DEMO_USER.email } });
+  if (existing) return { id: existing.id };
+
   const { app } = await import("../apps/api/src/app");
   const res = await app.request("/api/auth/sign-up/email", {
     method: "POST",
