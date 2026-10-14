@@ -39,8 +39,6 @@ export function StreaksApp() {
   const [detailGoal, setDetailGoal] = React.useState<GoalDTO | null>(null);
   const [detailOpen, setDetailOpen] = React.useState(false);
 
-  const today = todayKey();
-
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
@@ -88,6 +86,26 @@ export function StreaksApp() {
 
   React.useEffect(() => {
     fetchGoals();
+  }, [fetchGoals]);
+
+  // "Done today" and the streaks are computed for a date, so reload them when
+  // the local date changes while the page is open. The minute check also
+  // catches up after a laptop sleeps, and returning to the tab checks at once.
+  React.useEffect(() => {
+    let day = todayKey();
+    const refreshIfNewDay = () => {
+      const now = todayKey();
+      if (now !== day) {
+        day = now;
+        fetchGoals(true);
+      }
+    };
+    const timer = setInterval(refreshIfNewDay, 60_000);
+    document.addEventListener("visibilitychange", refreshIfNewDay);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshIfNewDay);
+    };
   }, [fetchGoals]);
 
   // Keep detail view in sync with the latest goal data.
@@ -172,6 +190,9 @@ export function StreaksApp() {
   }
 
   async function handleToggleToday(goal: GoalDTO) {
+    // Read the date at click time: a tab left open past midnight must check
+    // in for the new day, not the day the page last rendered.
+    const today = todayKey();
     // Optimistic update.
     const wasDone = goal.stats.doneToday;
     setGoals((prev) =>
