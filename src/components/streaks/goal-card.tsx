@@ -342,7 +342,13 @@ export function GoalCard({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDelete}
+              // Radix closes the dialog on click unless the event is
+              // cancelled. Keep it open so "Deleting…" shows until the request
+              // settles; handleDelete closes it when done.
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
               disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
