@@ -167,6 +167,14 @@ describe("goals api", () => {
     await api.goals.uncheck(createdId, "2026-10-14");
   });
 
+  it("check-in dates that are not real calendar days are rejected (400)", async () => {
+    const api = createTestApi(app, await cookieFor(USERS.alice));
+    for (const date of ["2026-02-31", "2026-13-45"]) {
+      expect((await api.goals.toggle(createdId, { date })).status).toBe(400);
+      expect((await api.goals.uncheck(createdId, date)).status).toBe(400);
+    }
+  });
+
   it("PATCH /goals/reorder reorders goals", async () => {
     const api = createTestApi(app, await cookieFor(USERS.alice));
     const second = await (await api.goals.create({ name: "Second" })).json();
