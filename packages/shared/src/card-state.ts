@@ -1,6 +1,5 @@
-import { addDays } from "date-fns";
 import type { Schedule } from "./schedule";
-import { isScheduledDay, weekdayShort } from "./schedule";
+import { isScheduledDay, nextScheduledDayKey, weekdayShort } from "./schedule";
 import { fromKey, toKey, type StreakStats } from "./streaks";
 
 /** Urgency hints for the weekly quota card copy. */
@@ -37,15 +36,8 @@ export function cardCheckinState(
   }
 
   if (!isScheduledDay(schedule, now.getDay())) {
-    // Next scheduled day strictly after today.
-    let d = addDays(now, 1);
-    for (let i = 0; i < 7; i++) {
-      if (isScheduledDay(schedule, d.getDay())) {
-        return { kind: "rest", nextDayShort: weekdayShort(d.getDay()) };
-      }
-      d = addDays(d, 1);
-    }
-    return { kind: "rest", nextDayShort: weekdayShort(now.getDay()) };
+    const next = fromKey(nextScheduledDayKey(schedule, toKey(now)));
+    return { kind: "rest", nextDayShort: weekdayShort(next.getDay()) };
   }
 
   // "Broken" needs a streak that once existed. Check-ins on rest days alone
@@ -58,29 +50,27 @@ export function cardCheckinState(
 export interface ToggleButtonStyle {
   /** shadcn Button variant: filled when checked, outlined otherwise. */
   variant: "default" | "outline";
-  /** Dashed border only for the unchecked rest-day invitation. */
+  /** Dashed border while unchecked, on rest days and check-in days alike. */
   dashed: boolean;
   /** Filled with the goal color (the checked state). */
   filled: boolean;
 }
 
 /**
- * Returns how a goal card's check-in button renders for its check-in state.
- * One function for every cadence keeps light and dark mode in sync. A
- * checked rest-day button must render filled (variant "default") like the
- * daily toggle; an outline variant fought the fill color and never looked
- * checked in dark mode.
+ * Returns how a goal card's check-in button renders. Rest days and check-in
+ * days render the same way, which keeps light and dark mode in sync: a
+ * checked rest-day button must be filled (variant "default") like the daily
+ * toggle, because an outline variant fought the fill color and never looked
+ * checked in dark mode. The state parameter stays so the card passes its
+ * state and the rule can differ per state again without touching callers.
  */
 export function toggleButtonStyle(
-  state: CardCheckinState,
+  _state: CardCheckinState,
   doneToday: boolean,
 ): ToggleButtonStyle {
-  if (state.kind === "rest") {
-    if (doneToday) return { variant: "default", dashed: false, filled: true };
-    return { variant: "outline", dashed: true, filled: false };
-  }
-  if (doneToday) return { variant: "default", dashed: false, filled: true };
-  return { variant: "outline", dashed: true, filled: false };
+  return doneToday
+    ? { variant: "default", dashed: false, filled: true }
+    : { variant: "outline", dashed: true, filled: false };
 }
 
 // Re-export for convenience so consumers import from one module.
