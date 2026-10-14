@@ -1,0 +1,20 @@
+"use client";
+
+/**
+ * fetch for the app's data endpoints that treats a 401 as an expired
+ * session: it sends the browser to /sign-in instead of handing the
+ * caller an error to toast. The returned promise never settles in that
+ * case, so no "could not load" toast or retry loop runs while the page
+ * navigates away.
+ */
+export async function apiFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const res = await fetch(input, init);
+  if (res.status === 401) {
+    window.location.href = "/sign-in";
+    return new Promise<never>(() => {});
+  }
+  return res;
+}

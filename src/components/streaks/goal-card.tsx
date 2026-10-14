@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { apiFetch } from "@/lib/api-fetch";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Flame, MoreHorizontal, Pencil, Trash2, Trophy, Check, GripHorizontal } from "lucide-react";
@@ -70,7 +71,7 @@ export function GoalCard({
   async function handleDelete() {
     setDeleting(true);
     try {
-      const res = await fetch(`/api/goals/${goal.id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/goals/${goal.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete");
       toast({ title: "Goal deleted", description: goal.name });
       onDeleted(goal);

@@ -14,7 +14,7 @@ import {
   arrayMove,
   rectSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Flame, Plus, RefreshCw } from "lucide-react";
+import { Flame, LogOut, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { StatsBar } from "./stats-bar";
@@ -24,6 +24,8 @@ import { GoalDetailSheet } from "./goal-detail-sheet";
 import { EmptyState } from "./empty-state";
 import { todayKey, type GoalDTO } from "@streakly/shared";
 import { useToast } from "@/hooks/use-toast";
+import { signOut } from "@/lib/session";
+import { apiFetch } from "@/lib/api-fetch";
 
 export function StreaksApp() {
   const { toast } = useToast();
@@ -51,7 +53,7 @@ export function StreaksApp() {
       let lastError: Error | null = null;
       for (let attempt = 0; attempt <= retries; attempt++) {
         try {
-          const res = await fetch("/api/goals", { cache: "no-store" });
+          const res = await apiFetch("/api/goals", { cache: "no-store" });
           if (!res.ok) throw new Error(`Server responded with ${res.status}`);
           const data: GoalDTO[] = await res.json();
           if (!Array.isArray(data)) throw new Error("Invalid response format");
@@ -100,6 +102,17 @@ export function StreaksApp() {
     setFormOpen(true);
   }
 
+  // Clears the session cookie and returns to the login screen; local
+  // state is dropped with the navigation, nothing else to clean up.
+  async function handleSignOut() {
+    try {
+      await signOut();
+      window.location.href = "/sign-in";
+    } catch {
+      toast({ title: "Could not sign out", variant: "destructive" });
+    }
+  }
+
   function handleEdit(goal: GoalDTO) {
     setEditingGoal(goal);
     setFormOpen(true);
@@ -142,7 +155,7 @@ export function StreaksApp() {
       const newIndex = ids.indexOf(String(over.id));
       if (oldIndex === -1 || newIndex === -1) return;
       const reordered = arrayMove(ids, oldIndex, newIndex);
-      const res = await fetch("/api/goals/reorder", {
+      const res = await apiFetch("/api/goals/reorder", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: reordered }),
@@ -171,7 +184,7 @@ export function StreaksApp() {
     );
 
     try {
-      const res = await fetch(`/api/goals/${goal.id}/checkins`, {
+      const res = await apiFetch(`/api/goals/${goal.id}/checkins`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date: today }),
@@ -236,6 +249,15 @@ export function StreaksApp() {
               />
             </Button>
             <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
+              onClick={handleSignOut}
+              aria-label="Sign out"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
             <Button onClick={handleCreate} size="sm" className="gap-1.5">
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">New goal</span>

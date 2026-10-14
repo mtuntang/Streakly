@@ -1,8 +1,14 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import type { Context, Next } from "hono";
+import { MIN_PASSWORD_LENGTH } from "@streakly/shared";
 import { db } from "../db";
+import { assertBootEnv } from "./env-guard";
 import { unauthorized } from "./http";
+
+// Runs before betterAuth() reads the secret and base URL, so a deploy
+// missing either fails here instead of building auth on dev defaults.
+assertBootEnv();
 
 /**
  * Auth for the api. Email/password only for now — the account table's
@@ -12,9 +18,17 @@ import { unauthorized } from "./http";
  */
 export const auth = betterAuth({
   database: prismaAdapter(db, { provider: "postgresql" }),
+  // Behind a proxy the request-inferred base URL is unsafe, and the
+  // origin-based CSRF check depends on it, so deploys set both from the
+  // environment. Unset (development) leaves Better Auth inferring them
+  // from the request.
+  baseURL: process.env.BETTER_AUTH_URL,
+  trustedOrigins: process.env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",")
+    .map((o) => o.trim())
+    .filter(Boolean),
   emailAndPassword: {
     enabled: true,
-    minPasswordLength: 10,
+    minPasswordLength: MIN_PASSWORD_LENGTH,
   },
   // Rate limiting is OFF by default in Better Auth and ON here for production.
   // Disabled under bun test: a suite makes hundreds of in-process requests

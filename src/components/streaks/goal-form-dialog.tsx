@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { apiFetch } from "@/lib/api-fetch";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -98,7 +99,7 @@ export function GoalFormDialog({
     try {
       const url = isEdit ? `/api/goals/${goal!.id}` : "/api/goals";
       const method = isEdit ? "PATCH" : "POST";
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
