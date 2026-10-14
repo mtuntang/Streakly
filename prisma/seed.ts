@@ -9,6 +9,7 @@
  *   demo@streakly.dev / demo-password-123
  */
 import { Prisma, PrismaClient } from "@prisma/client";
+import { toKey } from "@streakly/shared";
 
 const db = new PrismaClient();
 
@@ -110,7 +111,9 @@ async function main() {
       if (s.pattern[i] === 1) {
         const d = new Date(today);
         d.setDate(today.getDate() - (len - 1 - i));
-        const key = d.toISOString().slice(0, 10);
+        // The local calendar day, the same "today" the api uses. toISOString
+        // would give the UTC day, which is already tomorrow on a US evening.
+        const key = toKey(d);
         await db.checkIn.upsert({
           where: { goalId_date: { goalId: goal.id, date: new Date(key) } },
           update: {},
