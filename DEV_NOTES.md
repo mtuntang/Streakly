@@ -7,7 +7,7 @@ section without having followed the project.
 - Every decision has the same shape: **Problem** (what was wrong or
   needed), **Decision** (what we did), and **Why** (when it isn't obvious).
 - Newest decisions are at the bottom of "Decisions".
-- Each section ends with the PR where it happened, so you can look up the code.
+- Each heading ends with the PR where it happened, so you can look up the code.
 - Keep the file under ~350 lines. Move old sections to `DEV_NOTES-archive.md`.
 
 ---
