@@ -3,7 +3,12 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import type { Context, Next } from "hono";
 import { MIN_PASSWORD_LENGTH } from "@streakly/shared";
 import { db } from "../db";
+import { assertBootEnv } from "./env-guard";
 import { unauthorized } from "./http";
+
+// Runs before betterAuth() reads the secret and base URL, so a deploy
+// missing either fails here instead of building auth on dev defaults.
+assertBootEnv();
 
 /**
  * Auth for the api. Email/password only for now — the account table's

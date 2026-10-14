@@ -1,13 +1,7 @@
 import { Hono } from "hono";
 import goalsRoute from "./routes/goals";
 import { authRoute } from "./routes/auth";
-import { assertBootEnv } from "./lib/env-guard";
 import { HttpError } from "./lib/http";
-
-// Fails loud before the server binds: outside explicit development a
-// missing BETTER_AUTH_SECRET would mean Better Auth serves forgeable
-// sessions on a well-known fallback secret.
-assertBootEnv();
 
 const app = new Hono()
   .basePath("/api")
