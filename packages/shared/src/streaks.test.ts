@@ -92,11 +92,22 @@ describe("computeStreaks (scheduled)", () => {
       active: true,
     });
   });
-  it("weekly 3×: Mon only checked, now Friday → quota unreachable, dead", () => {
+  it("weekly 3×: Mon only checked, now Friday → today and Saturday can still meet it, active", () => {
     const wk = { type: "weekly" as const, timesPerWeek: 3 };
     expect(computeStreaks(["2026-09-07"], new Date("2026-09-11T12:00:00"), wk)).toMatchObject({
+      active: true,
+    });
+  });
+  it("weekly 3×: Mon only checked, now Saturday → only today left, quota unreachable, dead", () => {
+    const wk = { type: "weekly" as const, timesPerWeek: 3 };
+    expect(computeStreaks(["2026-09-07"], new Date("2026-09-12T12:00:00"), wk)).toMatchObject({
       active: false,
     });
+  });
+  it("weekly 3×: two checked, now Saturday unchecked → one check-in today meets it, active", () => {
+    const wk = { type: "weekly" as const, timesPerWeek: 3 };
+    const s = computeStreaks(["2026-09-07", "2026-09-09"], new Date("2026-09-12T12:00:00"), wk);
+    expect(s).toMatchObject({ active: true, doneToday: false, week: { done: 2, met: false } });
   });
   it("weekly 3×: nothing checked by Saturday → dead", () => {
     const wk = { type: "weekly" as const, timesPerWeek: 3 };

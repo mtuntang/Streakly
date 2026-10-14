@@ -162,7 +162,9 @@ function weeklyStats(
   const checksThisWeek = countWeek(weekStart, now);
   const daysRemaining = 6 - differenceInCalendarDays(now, weekStart); // after today, through Sat
   const metThisWeek = checksThisWeek >= quota;
-  const reachable = metThisWeek || daysRemaining >= quota - checksThisWeek;
+  // Today is still an open slot until it is checked.
+  const openDays = daysRemaining + (doneToday ? 0 : 1);
+  const reachable = metThisWeek || openDays >= quota - checksThisWeek;
 
   // current = consecutive weeks meeting quota, ending with the previous
   // fully-countable week. The current week counts too once its quota is met.
