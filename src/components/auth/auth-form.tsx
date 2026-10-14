@@ -8,13 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { MIN_PASSWORD_LENGTH } from "@streakly/shared";
-import { signIn, signUp } from "@/lib/session";
+import { getSession, signIn, signUp } from "@/lib/session";
 
 /**
- * Client form for both auth pages. The server owns the error contract —
- * only its message is surfaced, and the only client-side check is the
- * password floor, which avoids a guaranteed-rejected round-trip without
- * trying to re-implement Better Auth's validation.
+ * Client form for both auth pages. The server owns the error contract,
+ * so only its message is surfaced. The client pre-checks only what the
+ * server would reject anyway on sign-up (password floor, blank name).
+ * Sign-in sends whatever was typed: the floor governs new passwords, and
+ * an account created under an older, lower floor must still sign in.
  */
 export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   const router = useRouter();
@@ -26,9 +27,27 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
 
   const isSignUp = mode === "sign-up";
 
+  // An already signed-in visitor has nothing to do here; errors are
+  // ignored because the form itself still works without this check.
+  React.useEffect(() => {
+    let alive = true;
+    getSession()
+      .then((session) => {
+        if (alive && session !== null) router.replace("/");
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [router]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (password.length < MIN_PASSWORD_LENGTH) {
+    if (isSignUp && name.trim() === "") {
+      toast({ title: "Name is required", variant: "destructive" });
+      return;
+    }
+    if (isSignUp && password.length < MIN_PASSWORD_LENGTH) {
       toast({
         title: "Password too short",
         description: `Must be at least ${MIN_PASSWORD_LENGTH} characters.`,
@@ -43,10 +62,9 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       } else {
         await signIn(email.trim(), password);
       }
-      // Cookie is set by the response; a full navigation re-runs the
-      // boot session check and lands in the app.
+      // The response set the session cookie; navigating to / mounts a
+      // fresh AuthGate, whose session check now passes.
       router.replace("/");
-      router.refresh();
     } catch (err) {
       toast({
         title: isSignUp ? "Sign-up failed" : "Sign-in failed",
@@ -100,7 +118,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete={isSignUp ? "new-password" : "current-password"}
-          minLength={MIN_PASSWORD_LENGTH}
+          minLength={isSignUp ? MIN_PASSWORD_LENGTH : undefined}
           required
         />
       </div>
