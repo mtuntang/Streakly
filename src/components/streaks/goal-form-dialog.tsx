@@ -34,6 +34,7 @@ interface GoalFormDialogProps {
   onSaved: (goal: GoalDTO) => void;
 }
 
+/** Renders the dialog that creates a goal, or edits one when `goal` is set. */
 export function GoalFormDialog({
   open,
   onOpenChange,

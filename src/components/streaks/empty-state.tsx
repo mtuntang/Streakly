@@ -8,6 +8,7 @@ interface EmptyStateProps {
   onCreate: () => void;
 }
 
+/** Renders the first-run prompt shown when the user has no goals. */
 export function EmptyState({ onCreate }: EmptyStateProps) {
   return (
     <Card className="border-dashed">

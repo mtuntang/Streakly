@@ -25,6 +25,7 @@ function translatePrismaError(error: unknown): never {
   throw error;
 }
 
+/** Returns whether an error is a known Prisma error with the given code. */
 function isPrismaError(
   error: unknown,
   code: string,
@@ -36,9 +37,10 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Goal ids are uuids; anything else cannot exist. Checking here (instead of
- * letting Prisma throw on malformed uuid input) keeps unknown and malformed
- * ids on the same 404 path — a malformed id must not become a 500.
+ * Throws 404 unless the id is a well-formed uuid. Goal ids are uuids, so
+ * anything else cannot exist. Checking here instead of letting Prisma throw
+ * on malformed uuid input keeps unknown and malformed ids on the same 404
+ * path, so a malformed id never becomes a 500.
  */
 function assertGoalId(id: string): void {
   if (!UUID_RE.test(id)) throw notFound();
@@ -89,9 +91,10 @@ export async function loadGoals(userId: string): Promise<GoalDTO[]> {
 }
 
 /**
- * Prisma's updateMany/deleteMany return a count instead of throwing when
- * nothing matched the where clause — no row means the goal is missing OR
- * owned by someone else, and both read as a 404.
+ * Throws 404 when an updateMany or deleteMany matched no rows. Unlike
+ * update and delete, those calls return a count instead of throwing. No
+ * match means the goal is missing or owned by someone else, and both read
+ * as a 404.
  */
 function assertFound(count: number): void {
   if (count === 0) throw notFound();
@@ -108,6 +111,10 @@ export async function loadGoal(userId: string, id: string): Promise<GoalDTO | nu
   return goal ? toGoalDTO(goal) : null;
 }
 
+/**
+ * Creates a goal for the user, placed after their existing goals.
+ * Color and icon fall back to the shared defaults when omitted.
+ */
 export async function createGoal(
   userId: string,
   input: CreateGoalInput,
@@ -178,6 +185,7 @@ export async function deleteGoal(userId: string, id: string): Promise<void> {
   assertFound(count);
 }
 
+/** Sets each goal's order to its index in `ids`, in one transaction. */
 export async function reorderGoals(userId: string, ids: string[]): Promise<void> {
   ids.forEach(assertGoalId);
   // Scoped per-goal updateMany: an id owned by someone else leaves count 0.
@@ -192,9 +200,9 @@ export async function reorderGoals(userId: string, ids: string[]): Promise<void>
 }
 
 /**
- * Loads the user's goal or throws 404 — the gate every check-in mutation
- * passes through. Check-in rows need no userId of their own because
- * ownership always flows goal → check-in via this gate.
+ * Loads the user's goal, or throws 404 when it is missing or foreign.
+ * Every check-in change passes through this check, which is why check-in
+ * rows need no userId of their own: ownership flows goal → check-in.
  */
 async function requireOwnedGoal(userId: string, id: string): Promise<GoalRow> {
   assertGoalId(id);
@@ -239,6 +247,7 @@ export async function toggleCheckIn(
   }
 }
 
+/** Removes the goal's check-in for one date; no check-in is not an error. */
 export async function removeCheckIn(
   userId: string,
   id: string,

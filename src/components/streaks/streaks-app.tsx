@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { signOut } from "@/lib/session";
 import { apiFetch } from "@/lib/api-fetch";
 
+/** Renders the signed-in app: stats, the sortable goal grid, and its dialogs. */
 export function StreaksApp() {
   const { toast } = useToast();
   const [goals, setGoals] = React.useState<GoalDTO[]>([]);
@@ -350,6 +351,7 @@ export function StreaksApp() {
   );
 }
 
+/** Returns a greeting for the current local hour. */
 function greeting() {
   const h = new Date().getHours();
   if (h < 12) return "Good morning";
@@ -357,6 +359,7 @@ function greeting() {
   return "Good evening";
 }
 
+/** Renders placeholder cards while goals load. */
 function LoadingState() {
   return (
     <div className="space-y-6">

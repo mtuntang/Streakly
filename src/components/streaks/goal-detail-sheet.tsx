@@ -36,6 +36,7 @@ interface GoalDetailSheetProps {
   onEdit: (goal: GoalDTO) => void;
 }
 
+/** Renders the side sheet with a goal's full stats and heatmap. */
 export function GoalDetailSheet({
   goal,
   open,

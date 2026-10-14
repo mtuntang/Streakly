@@ -11,7 +11,7 @@ import { MIN_PASSWORD_LENGTH } from "@streakly/shared";
 import { getSession, signIn, signUp } from "@/lib/session";
 
 /**
- * Client form for both auth pages. The server owns the error contract,
+ * Renders the sign-in or sign-up form. The server owns the error contract,
  * so only its message is surfaced. The client pre-checks only what the
  * server would reject anyway on sign-up (password floor, blank name).
  * Sign-in sends whatever was typed: the floor governs new passwords, and

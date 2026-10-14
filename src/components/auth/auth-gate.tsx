@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { getSession } from "@/lib/session";
 
 /**
- * Boot-time session check. Renders nothing meaningful until the session
- * is resolved: unauthenticated → redirect to /sign-in; authenticated →
- * render children. A transport/contract error is not "signed out", so
- * it shows a retry instead of bouncing the user to the login page.
+ * Checks the session before rendering its children: signed out redirects
+ * to /sign-in, signed in renders the children. A transport or contract
+ * error is not "signed out", so it shows Retry instead of sending the user
+ * to the login page.
  */
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();

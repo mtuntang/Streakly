@@ -35,6 +35,7 @@ const MONTHS = [
   "Dec",
 ];
 
+/** Renders a goal's check-in heatmap from its date keys. */
 export function Heatmap({
   dateKeys,
   color,

@@ -59,9 +59,9 @@ export const auth = betterAuth({
 export type AuthEnv = { Variables: { userId: string } };
 
 /**
- * Route guard: resolves the session from the request cookie and puts the
- * user id on the context. Every goals route mounts this BEFORE validation —
- * a 401 must never depend on the shape of the body.
+ * Resolves the session from the request cookie and puts the user id on the
+ * context, or throws 401 when there is no session. Every goals route mounts
+ * it before body validation, so a 401 never depends on the shape of the body.
  */
 export async function authenticateSession(
   c: Context<AuthEnv>,

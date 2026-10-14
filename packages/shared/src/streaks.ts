@@ -18,7 +18,7 @@ export function fromKey(key: string): Date {
   return parseISO(key);
 }
 
-/** Today's date key in local time. */
+/** Returns today's date key in local time. */
 export function todayKey(): string {
   return toKey(new Date());
 }
@@ -138,7 +138,7 @@ export function computeStreaks(
   return { current, longest, total: sorted.length, doneToday, active, unit: "day" };
 }
 
-/** Weekly (X per week) stats: the unit is a calendar week (Sunday start). */
+/** Computes stats for a weekly goal, where the unit is a calendar week (Sunday start). */
 function weeklyStats(
   set: Set<string>,
   sorted: string[],
@@ -207,10 +207,7 @@ function weeklyStats(
   };
 }
 
-/**
- * Builds a GitHub-style heatmap grid for the last `weeks` weeks ending today.
- * Returns rows = weeks (oldest -> newest), each row = 7 days Sun..Sat.
- */
+/** One heatmap day: its key and date, its check-in count, and whether it is in the future. */
 export interface HeatmapCell {
   key: string;
   date: Date;
@@ -218,6 +215,11 @@ export interface HeatmapCell {
   inFuture: boolean;
 }
 
+/**
+ * Builds a GitHub-style heatmap grid for the last `weeks` weeks ending with
+ * the current week. Rows are weeks (oldest first); each row is 7 days,
+ * Sunday to Saturday.
+ */
 export function buildHeatmap(
   dateKeys: string[],
   weeks = 18,
@@ -257,7 +259,7 @@ export function lastNDays(n: number, now: Date = new Date()): string[] {
   return out;
 }
 
-/** Human friendly label for a date key, e.g. "Mon, Jun 3". */
+/** Returns a human-friendly label for a date key, e.g. "Mon, Jun 3". */
 export function prettyDate(key: string): string {
   return format(fromKey(key), "EEE, MMM d");
 }
