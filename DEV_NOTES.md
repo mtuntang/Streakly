@@ -196,6 +196,39 @@ them cost ~60% of the repo in dead lines once.
   serving nothing (curl 000 + LISTENING = kill and relaunch).
 - Dev-server readiness is verified with curl, never by trusting log files.
 
+### 15. Web session UI: fail-closed boot, server-owned auth rules (PR #23)
+
+- **Boot guard.** Outside explicit `development`/`test`, the api refuses to
+  start without a 32+ character `BETTER_AUTH_SECRET` and a `BETTER_AUTH_URL`.
+  An unset `NODE_ENV` is not treated as dev. Without these, Better Auth quietly
+  falls back to a public dev secret (forgeable sessions) and infers its base
+  URL from the request (unsafe behind a proxy, and the CSRF origin check
+  depends on it). The guard runs at the top of `lib/auth.ts`, before
+  `betterAuth()` is built, not in the entry file: imports are hoisted, so a
+  guard in `index.ts` would run after auth was already configured.
+- **Password floor applies to sign-up only.** `MIN_PASSWORD_LENGTH` lives in
+  `packages/shared` and both the api config and the sign-up form use it.
+  Sign-in sends whatever was typed. If the floor ever rises, accounts made
+  under the old floor must still be able to sign in.
+- **"Signed out" and "can't reach the server" are different states.** On a
+  null session, `AuthGate` redirects to /sign-in. On a transport or contract
+  error it shows Retry, so a network blip never logs the user out.
+- **An expired session mid-use redirects; it doesn't toast.** Data calls go
+  through `apiFetch`. A 401 sends the browser to /sign-in and returns a
+  promise that never settles, so no error toast or retry loop runs while the
+  page leaves.
+
+### 16. Entry files never default-export a `fetch` object (PR #24)
+
+Bun automatically starts a server (port 3000) for an entry file whose default
+export has a `fetch` method. The api's `index.ts` default-exported its Hono
+app, so a second server took the web app's port: every page returned Bun's
+plain-text 404 while `/api/*` still worked. The fix: the app lives in
+`apps/api/src/app.ts` as a named export. `index.ts` only calls `Bun.serve` on
+4000. Tests and the seed script import `{ app }` from `src/app`. Rejected:
+the old `import.meta.main` guard. It only kept tests from binding a port and
+couldn't stop Bun's auto-serve.
+
 ---
 
 ## What we deliberately did NOT do (and why)
@@ -240,15 +273,18 @@ demo data re-seeds via `bun run db:seed`.
 
 ## Roadmap (agreed sequence)
 
-1. **NEXT: Monorepo Step 2 — `apps/api` (Hono) owns the DB; web becomes
+1. **Monorepo Step 2 — `apps/api` (Hono) owns the DB; web becomes
    HTTP-only.** Design drafted (see `.hermes/plans/2026-09-11_design-backend.md`):
    request → zod (shared schema) → Prisma → `computeStreaks` (`packages/shared/src/streaks.ts`) → `GoalDTO`.
    Three PRs: skeleton, route migration (fix `loadGoals` in `streaks.ts`: loads entire
    goal set; narrow to per-goal query), web cutover. **(DONE — PRs #14, #17, #18,
    #19: api extraction, Postgres on docker compose, Better Auth plumbing, uuid ids.)**
 2. Postgres migration **(DONE — PR #17)**.
-3. Better Auth + userId scoping. Plumbing **(IN REVIEW — PR #18)**; scoping PR next,
-   then web session UI. Decision: one person = one user (no profiles; see auth notes).
+3. Better Auth + userId scoping **(DONE — PRs #18, #20, #22, #23: plumbing,
+   userId scoping, rate limiting, web session UI)**. Decision: one person = one
+   user (no profiles; see auth notes). **NEXT:** capture the IANA timezone on
+   User at sign-up; the real work is the DST test suite (spring-forward /
+   fall-back).
 4. Stripe (subscriptions; post-MVP).
 5. PWA + **offline caching**: service worker caches shell + read data; writes made
    offline are queued client-side with CLIENT-GENERATED ids (uuid v7) and replayed on
