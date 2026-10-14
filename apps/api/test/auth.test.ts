@@ -15,6 +15,9 @@ const TEST_DB_URL =
   "postgresql://streakly:streakly@localhost:5432/streakly_auth_test";
 process.env.DATABASE_URL = TEST_DB_URL;
 (process.env as Record<string, string>).NODE_ENV = "test";
+// The web origin, as in dev and deploy. Requests below reach the api on a
+// different host (http://localhost), like proxied requests do.
+process.env.BETTER_AUTH_URL = "http://localhost:3000";
 
 const psql = (sql: string) =>
   execSync(
@@ -124,5 +127,32 @@ describe("auth api", () => {
     const res = await app.request("/api/auth/get-session");
     const session = await res.json();
     expect(session).toBeFalsy();
+  });
+
+  const signInFrom = (origin: string) =>
+    app.request("/api/auth/sign-in/email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: origin },
+      body: JSON.stringify({ email: USER.email, password: USER.password }),
+    });
+
+  it("sign-in from the web origin is accepted although the api host differs", async () => {
+    const res = await signInFrom("http://localhost:3000");
+    expect(res.status).toBe(200);
+  });
+
+  it("sign-in from a foreign origin is rejected", async () => {
+    const res = await signInFrom("http://evil.example");
+    expect(res.status).toBe(403);
+  });
+
+  it("credential endpoints get the custom 5-per-minute rate limit", async () => {
+    // The limiter itself is off under test; this pins the config, because a
+    // misnamed option key is silently ignored by Better Auth.
+    const { auth } = await import("../src/lib/auth");
+    expect(auth.options.rateLimit?.customRules).toEqual({
+      "/sign-in/email": { window: 60, max: 5 },
+      "/sign-up/email": { window: 60, max: 5 },
+    });
   });
 });
