@@ -18,10 +18,9 @@ assertBootEnv();
  */
 export const auth = betterAuth({
   database: prismaAdapter(db, { provider: "postgresql" }),
-  // Behind a proxy the request-inferred base URL is unsafe, and the
-  // origin-based CSRF check depends on it, so deploys set both from the
-  // environment. Unset (development) leaves Better Auth inferring them
-  // from the request.
+  // BETTER_AUTH_URL must be the WEB origin the browser sees, not the api's
+  // own address: requests arrive through the web app's /api proxy, and the
+  // origin check compares the browser's Origin header against this value.
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins: process.env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",")
     .map((o) => o.trim())
@@ -30,29 +29,44 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: MIN_PASSWORD_LENGTH,
   },
-  // Rate limiting is OFF by default in Better Auth and ON here for production.
-  // Disabled under bun test: a suite makes hundreds of in-process requests
-  // from one IP inside a single window, which would exhaust the limit and
-  // fail unrelated tests. The limiter is Better Auth runtime behavior, not
-  // this repo's logic, so there is nothing meaningful to integration-test.
+  // Better Auth skips its origin (CSRF) check under NODE_ENV=test by
+  // default. Forcing it on keeps tests exercising the same check that
+  // runs in development and production.
+  advanced: { disableOriginCheck: false },
+  // Rate limiting is on everywhere except bun test: a suite makes hundreds
+  // of in-process requests from one IP inside a single window, which would
+  // exhaust the limit and fail unrelated tests.
   rateLimit: {
     enabled: process.env.NODE_ENV !== "test",
     window: 60,
     max: 100,
-    specialRules: [
-      // Credential endpoints get a much tighter budget than the general API.
-      { matcher: "/sign-in/email", window: 60, max: 5 },
-      { matcher: "/sign-up/email", window: 60, max: 5 },
-    ],
+    // Credential endpoints get a much tighter budget than the general API.
+    // Keys are exact paths; the option must be named customRules, because
+    // Better Auth silently ignores unknown option keys.
+    customRules: {
+      "/sign-in/email": { window: 60, max: 5 },
+      "/sign-up/email": { window: 60, max: 5 },
+    },
   },
 });
+
+/**
+ * Context variables set by authenticateSession. Routers declare this type
+ * so `c.get("userId")` is a typed string: a misspelled key fails to
+ * compile instead of reading undefined, which Prisma would treat as "no
+ * filter" and return every user's rows.
+ */
+export type AuthEnv = { Variables: { userId: string } };
 
 /**
  * Route guard: resolves the session from the request cookie and puts the
  * user id on the context. Every goals route mounts this BEFORE validation —
  * a 401 must never depend on the shape of the body.
  */
-export async function authenticateSession(c: Context, next: Next): Promise<void> {
+export async function authenticateSession(
+  c: Context<AuthEnv>,
+  next: Next,
+): Promise<void> {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
   if (!session) throw unauthorized();
   c.set("userId", session.user.id);
