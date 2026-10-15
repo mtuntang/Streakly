@@ -46,11 +46,7 @@ export function GoalDetailSheet({
   if (!goal) return null;
   const colorCfg = getColor(goal.color);
 
-  const last30 = lastNDays(30);
   const doneSet = new Set(goal.checkIns.map((c) => c.date));
-  const doneLast30 = last30.filter((d) => doneSet.has(d)).length;
-  const rate30 = Math.round((doneLast30 / 30) * 100);
-
   const recent = lastNDays(14).reverse();
 
   const isWeekly = goal.stats.unit === "week";
@@ -69,7 +65,7 @@ export function GoalDetailSheet({
           value: `${goal.stats.week?.done ?? 0}/${goal.stats.week?.quota ?? 0}`,
           icon: CalendarCheck,
         },
-        { label: "30-day rate", value: `${rate30}%`, icon: Target },
+        { label: "4-week rate", value: `${goal.stats.rate30}%`, icon: Target },
       ]
     : [
         {
@@ -80,7 +76,7 @@ export function GoalDetailSheet({
         },
         { label: "Longest streak", value: `${goal.stats.longest}${unitSuffix}`, icon: Trophy },
         { label: "Total check-ins", value: goal.stats.total, icon: CalendarCheck },
-        { label: "30-day rate", value: `${rate30}%`, icon: Target },
+        { label: "30-day rate", value: `${goal.stats.rate30}%`, icon: Target },
       ];
 
   return (
