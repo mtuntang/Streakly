@@ -6,10 +6,12 @@ export const ScheduleSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("daily") }),
   z.object({
     type: z.literal("weekdays"),
+    // Each weekday once, in order: [5, 1, 1] is stored as [1, 5].
     days: z
       .array(z.number().int().min(0).max(6))
       .min(1)
-      .max(7),
+      .max(7)
+      .transform((days) => [...new Set(days)].sort((a, b) => a - b)),
   }),
   z.object({
     type: z.literal("weekly"),
@@ -34,15 +36,10 @@ export function isScheduledDay(
 
 /**
  * Parses stored JSON into a Schedule, returning null (daily) for anything
- * invalid. Weekdays are deduped and sorted, so stored [3,1,3] becomes [1,3].
+ * invalid. The schema dedupes and sorts weekdays, so stored [3,1,3] comes
+ * back as [1,3] without changing the caller's object.
  */
 export function normalizeSchedule(raw: unknown): Schedule | null {
-  if (raw && typeof raw === "object" && "type" in raw) {
-    const obj = raw as { type: string; days?: unknown };
-    if (obj.type === "weekdays" && Array.isArray(obj.days)) {
-      obj.days = [...new Set(obj.days as number[])].sort((a, b) => a - b);
-    }
-  }
   const parsed = ScheduleSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
 }

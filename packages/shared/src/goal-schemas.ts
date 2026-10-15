@@ -8,7 +8,14 @@ const iconKeys = GOAL_ICONS as [string, ...string[]];
 /** Contract for creating a goal — same schema validates the web form and the API edge. */
 export const CreateGoalSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(80),
-  description: z.string().trim().max(280).optional().nullable(),
+  // Blank means "no description": store null rather than an empty string.
+  description: z
+    .string()
+    .trim()
+    .max(280)
+    .transform((text) => (text === "" ? null : text))
+    .optional()
+    .nullable(),
   color: z.enum(colorKeys).optional(),
   icon: z.enum(iconKeys).optional(),
   schedule: ScheduleSchema.optional().nullable(),
