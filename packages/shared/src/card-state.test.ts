@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { cardCheckinState, toggleButtonStyle, type CardCheckinState } from "./card-state";
+import { cardCheckinState, toggleButtonStyle } from "./card-state";
 import type { StreakStats } from "./streaks";
 
 const stats = (over: Partial<StreakStats>): StreakStats => ({
@@ -91,42 +91,11 @@ describe("cardCheckinState", () => {
 });
 
 describe("toggleButtonStyle (button render states)", () => {
-  const restState: CardCheckinState = { kind: "rest", nextDayShort: "Mon" };
-  const checkinState: CardCheckinState = { kind: "checkin", brokenStreak: false, urgency: "normal" };
-
-  it("rest day, unchecked: outline + dashed, not filled", () => {
-    expect(toggleButtonStyle(restState, false)).toEqual({
-      variant: "outline",
-      dashed: true,
-      filled: false,
-    });
+  it("unchecked: outline, not filled", () => {
+    expect(toggleButtonStyle(false)).toEqual({ variant: "outline", filled: false });
   });
 
-  it("rest day, checked (voluntary): FILLED variant 'default' — dark-mode regression lock", () => {
-    expect(toggleButtonStyle(restState, true)).toEqual({
-      variant: "default",
-      dashed: false,
-      filled: true,
-    });
-  });
-
-  it("check-in day, unchecked: outline + dashed, not filled", () => {
-    expect(toggleButtonStyle(checkinState, false)).toEqual({
-      variant: "outline",
-      dashed: true,
-      filled: false,
-    });
-  });
-
-  it("check-in day, checked: filled variant 'default'", () => {
-    expect(toggleButtonStyle(checkinState, true)).toEqual({
-      variant: "default",
-      dashed: false,
-      filled: true,
-    });
-  });
-
-  it("checked states are identical across rest day and check-in day (consistent dark/light rendering)", () => {
-    expect(toggleButtonStyle(restState, true)).toEqual(toggleButtonStyle(checkinState, true));
+  it("checked: FILLED variant 'default' on every day, rest days included (dark-mode regression lock)", () => {
+    expect(toggleButtonStyle(true)).toEqual({ variant: "default", filled: true });
   });
 });

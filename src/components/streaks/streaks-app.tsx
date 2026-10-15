@@ -321,11 +321,7 @@ export function StreaksApp() {
           <p className="text-sm text-muted-foreground sm:text-base">
             {loading
               ? "Loading your streaks…"
-              : goals.length === 0
-                ? "Let's build some momentum."
-                : doneTodayCount === goals.length
-                  ? "All goals done today. You're on fire! 🔥"
-                  : `${doneTodayCount}/${goals.length} goals completed today — keep the chain alive.`}
+              : todayProgressMessage(doneTodayCount, goals.length)}
           </p>
         </div>
 
@@ -400,6 +396,13 @@ function greeting() {
   if (h < 12) return "Good morning";
   if (h < 18) return "Good afternoon";
   return "Good evening";
+}
+
+/** Returns the line under the greeting that sums up today's progress. */
+function todayProgressMessage(done: number, total: number): string {
+  if (total === 0) return "Let's build some momentum.";
+  if (done === total) return "All goals done today. You're on fire! 🔥";
+  return `${done}/${total} goals completed today — keep the chain alive.`;
 }
 
 /** Renders placeholder cards while goals load. */

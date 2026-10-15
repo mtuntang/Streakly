@@ -75,7 +75,6 @@ export function Heatmap({
   const cellPx = cellSize;
   const step = cellPx + gap;
   const width = weeks * step;
-  const height = 7 * step;
 
   return (
     <div className={cn("relative", className)}>

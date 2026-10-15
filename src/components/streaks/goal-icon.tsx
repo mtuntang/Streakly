@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import {
   Flame,
   Dumbbell,
@@ -55,5 +54,3 @@ export function GoalIcon({
   const Icon = ICONS[name] ?? Flame;
   return <Icon className={className} />;
 }
-
-export const ICON_OPTIONS = Object.keys(ICONS);
