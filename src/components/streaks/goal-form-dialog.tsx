@@ -150,7 +150,7 @@ export function GoalFormDialog({
           <DialogDescription>
             {isEdit
               ? "Update the details of your habit."
-              : "Create a new habit to track daily."}
+              : "Create a new habit to track."}
           </DialogDescription>
           <span className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 text-muted-foreground/40">
             <GripHorizontal className="h-4 w-4" />
