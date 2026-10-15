@@ -27,6 +27,10 @@ import {
 import { GoalIcon } from "./goal-icon";
 import { cn } from "@/lib/utils";
 
+/** Starting values for the cadence pickers when a goal doesn't set them. */
+const DEFAULT_DAYS = [1, 3, 5];
+const DEFAULT_TIMES_PER_WEEK = 3;
+
 interface GoalFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -49,8 +53,8 @@ export function GoalFormDialog({
   const [color, setColor] = React.useState("emerald");
   const [icon, setIcon] = React.useState("Flame");
   const [mode, setMode] = React.useState<"daily" | "weekdays" | "weekly">("daily");
-  const [days, setDays] = React.useState<number[]>([1, 3, 5]);
-  const [timesPerWeek, setTimesPerWeek] = React.useState(3);
+  const [days, setDays] = React.useState<number[]>(DEFAULT_DAYS);
+  const [timesPerWeek, setTimesPerWeek] = React.useState(DEFAULT_TIMES_PER_WEEK);
   const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
@@ -61,8 +65,10 @@ export function GoalFormDialog({
       setIcon(goal?.icon ?? "Flame");
       const s = goal?.schedule ?? { type: "daily" as const };
       setMode(s.type);
-      if (s.type === "weekdays") setDays(s.days);
-      if (s.type === "weekly") setTimesPerWeek(s.timesPerWeek);
+      // Reset both, not just the current mode's: otherwise a new goal starts
+      // with the days or per-week count of the goal edited last.
+      setDays(s.type === "weekdays" ? s.days : DEFAULT_DAYS);
+      setTimesPerWeek(s.type === "weekly" ? s.timesPerWeek : DEFAULT_TIMES_PER_WEEK);
     }
   }, [open, goal]);
 
