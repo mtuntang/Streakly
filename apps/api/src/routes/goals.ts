@@ -2,9 +2,9 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 import {
   CheckInBodySchema,
+  DateKeySchema,
   CreateGoalSchema,
   UpdateGoalSchema,
-  fromKey,
   toKey,
 } from "@streakly/shared";
 import {
@@ -79,11 +79,6 @@ async function toggleCheckInRoute(c: Context<AuthEnv>) {
 
   const { date } = await parseBody(c, CheckInBodySchema);
   const dateKey = date ?? toKey(new Date());
-  try {
-    fromKey(dateKey);
-  } catch {
-    throw badRequest("Invalid date");
-  }
 
   const checked = await toggleCheckIn(userId, id, dateKey);
   return c.json({ checked, goal: await loadGoal(userId, id) });
@@ -96,10 +91,9 @@ async function removeCheckInRoute(c: Context<AuthEnv>) {
   const goal = await loadGoal(userId, id);
   if (!goal) throw notFound();
 
-  const date = c.req.query("date") ?? toKey(new Date());
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    throw badRequest("Invalid date format. Use YYYY-MM-DD.");
-  }
+  const parsed = DateKeySchema.safeParse(c.req.query("date") ?? toKey(new Date()));
+  if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);
+  const date = parsed.data;
 
   await removeCheckIn(userId, id, date);
   return c.json({ checked: false, goal: await loadGoal(userId, id) });
