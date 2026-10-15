@@ -17,12 +17,21 @@ export const CreateGoalSchema = z.object({
 /** Contract for updating a goal — every field optional. */
 export const UpdateGoalSchema = CreateGoalSchema.partial();
 
+/**
+ * A "YYYY-MM-DD" key for a day that exists on the calendar. The format check
+ * alone lets 2026-02-31 through, and new Date() silently rolls it to March 3.
+ */
+export const DateKeySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD")
+  .refine((key) => {
+    const day = new Date(`${key}T00:00:00Z`);
+    return !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === key;
+  }, "date must be a real calendar day");
+
 /** Contract for check-in requests — date optional, defaults to today server-side. */
 export const CheckInBodySchema = z.object({
-  date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD")
-    .optional(),
+  date: DateKeySchema.optional(),
 });
 
 export type CreateGoalInput = z.infer<typeof CreateGoalSchema>;
