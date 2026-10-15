@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   DndContext,
   closestCenter,
+  KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
@@ -13,6 +14,7 @@ import {
   SortableContext,
   arrayMove,
   rectSortingStrategy,
+  sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { Flame, LogOut, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -39,13 +41,16 @@ export function StreaksApp() {
   const [detailGoal, setDetailGoal] = React.useState<GoalDTO | null>(null);
   const [detailOpen, setDetailOpen] = React.useState(false);
 
-  const today = todayKey();
-
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
     }),
+    // Space picks up the focused drag handle, arrows move it, Space drops.
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  // Goal ids with a check-in request in flight (see handleToggleToday).
+  const togglesInFlight = React.useRef(new Set<string>());
 
   const fetchGoals = React.useCallback(
     async (silent = false, retries = 2) => {
@@ -88,6 +93,26 @@ export function StreaksApp() {
 
   React.useEffect(() => {
     fetchGoals();
+  }, [fetchGoals]);
+
+  // "Done today" and the streaks are computed for a date, so reload them when
+  // the local date changes while the page is open. The minute check also
+  // catches up after a laptop sleeps, and returning to the tab checks at once.
+  React.useEffect(() => {
+    let day = todayKey();
+    const refreshIfNewDay = () => {
+      const now = todayKey();
+      if (now !== day) {
+        day = now;
+        fetchGoals(true);
+      }
+    };
+    const timer = setInterval(refreshIfNewDay, 60_000);
+    document.addEventListener("visibilitychange", refreshIfNewDay);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshIfNewDay);
+    };
   }, [fetchGoals]);
 
   // Keep detail view in sync with the latest goal data.
@@ -172,7 +197,15 @@ export function StreaksApp() {
   }
 
   async function handleToggleToday(goal: GoalDTO) {
-    // Optimistic update.
+    // The endpoint is a toggle, so a second click while the first request is
+    // in flight would undo it. Ignore clicks until the goal's request settles.
+    if (togglesInFlight.current.has(goal.id)) return;
+    togglesInFlight.current.add(goal.id);
+    // Read the date at click time: a tab left open past midnight must check
+    // in for the new day, not the day the page last rendered.
+    const today = todayKey();
+    // Optimistic update: flip doneToday too, because the card's button reads
+    // it, so the click shows at once instead of when the server replies.
     const wasDone = goal.stats.doneToday;
     setGoals((prev) =>
       prev.map((g) => {
@@ -180,7 +213,7 @@ export function StreaksApp() {
         const checkIns = wasDone
           ? g.checkIns.filter((c) => c.date !== today)
           : [...g.checkIns, { date: today }];
-        return { ...g, checkIns };
+        return { ...g, checkIns, stats: { ...g.stats, doneToday: !wasDone } };
       }),
     );
 
@@ -204,14 +237,24 @@ export function StreaksApp() {
         });
       }
     } catch {
-      // Revert on failure.
+      // Undo only this click, on the goal as it is now: restoring the
+      // pre-click copy would also wipe anything that arrived since, such as
+      // a refresh that brought newer data.
       setGoals((prev) =>
-        prev.map((g) => (g.id === goal.id ? goal : g)),
+        prev.map((g) => {
+          if (g.id !== goal.id) return g;
+          const checkIns = wasDone
+            ? [...g.checkIns, { date: today }]
+            : g.checkIns.filter((c) => c.date !== today);
+          return { ...g, checkIns, stats: { ...g.stats, doneToday: wasDone } };
+        }),
       );
       toast({
         title: "Could not check in",
         variant: "destructive",
       });
+    } finally {
+      togglesInFlight.current.delete(goal.id);
     }
   }
 
