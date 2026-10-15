@@ -175,6 +175,13 @@ describe("goals api", () => {
     }
   });
 
+  it("reorder rejects malformed ids and oversized lists (400)", async () => {
+    const api = createTestApi(app, await cookieFor(USERS.alice));
+    expect((await api.goals.reorder(["not-a-goal-id"])).status).toBe(400);
+    const tooMany = Array.from({ length: 501 }, () => crypto.randomUUID());
+    expect((await api.goals.reorder(tooMany)).status).toBe(400);
+  });
+
   it("PATCH /goals/reorder reorders goals", async () => {
     const api = createTestApi(app, await cookieFor(USERS.alice));
     const second = await (await api.goals.create({ name: "Second" })).json();
