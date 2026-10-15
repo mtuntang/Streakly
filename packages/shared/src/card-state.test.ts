@@ -68,10 +68,19 @@ describe("cardCheckinState", () => {
   it("daily: broken streak when scheduled today, unchecked, history exists", () => {
     const s = cardCheckinState(
       null,
-      stats({ current: 0, active: false, total: 5 }),
+      stats({ current: 0, longest: 3, active: false, total: 5 }),
       new Date("2026-09-10T10:00:00"),
     );
     expect(s).toMatchObject({ kind: "checkin", brokenStreak: true, urgency: "normal" });
+  });
+
+  it("weekdays: not broken when the only check-ins were on rest days (no streak ever)", () => {
+    const s = cardCheckinState(
+      { type: "weekdays", days: [1, 3, 5] },
+      stats({ current: 0, longest: 0, active: false, total: 1 }),
+      new Date("2026-10-12T10:00:00"), // Monday, scheduled
+    );
+    expect(s).toMatchObject({ kind: "checkin", brokenStreak: false });
   });
 
   it("daily: not broken for a fresh goal (no history)", () => {
