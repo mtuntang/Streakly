@@ -50,8 +50,6 @@ export function cardCheckinState(
 export interface ToggleButtonStyle {
   /** shadcn Button variant: filled when checked, outlined otherwise. */
   variant: "default" | "outline";
-  /** Dashed border while unchecked, on rest days and check-in days alike. */
-  dashed: boolean;
   /** Filled with the goal color (the checked state). */
   filled: boolean;
 }
@@ -61,17 +59,10 @@ export interface ToggleButtonStyle {
  * days render the same way, which keeps light and dark mode in sync: a
  * checked rest-day button must be filled (variant "default") like the daily
  * toggle, because an outline variant fought the fill color and never looked
- * checked in dark mode. The state parameter stays so the card passes its
- * state and the rule can differ per state again without touching callers.
+ * checked in dark mode.
  */
-export function toggleButtonStyle(
-  _state: CardCheckinState,
-  doneToday: boolean,
-): ToggleButtonStyle {
+export function toggleButtonStyle(doneToday: boolean): ToggleButtonStyle {
   return doneToday
-    ? { variant: "default", dashed: false, filled: true }
-    : { variant: "outline", dashed: true, filled: false };
+    ? { variant: "default", filled: true }
+    : { variant: "outline", filled: false };
 }
-
-// Re-export for convenience so consumers import from one module.
-export { toKey, fromKey };

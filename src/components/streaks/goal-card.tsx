@@ -27,11 +27,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { getColor, type GoalDTO } from "@streakly/shared";
 import {
   cadenceLabel,
   cardCheckinState,
+  getColor,
   toggleButtonStyle,
+  type GoalDTO,
 } from "@streakly/shared";
 
 import { GoalIcon } from "./goal-icon";
@@ -90,7 +91,7 @@ export function GoalCard({
   const doneToday = goal.stats.doneToday;
   const today = new Date();
   const cardState = cardCheckinState(goal.schedule, goal.stats, today);
-  const buttonStyle = toggleButtonStyle(cardState, doneToday);
+  const buttonStyle = toggleButtonStyle(doneToday);
   const isWeekly = goal.schedule?.type === "weekly";
 
   // Status message for daily/weekdays cards — honest states, never reuse empty-state copy.
@@ -176,19 +177,19 @@ export function GoalCard({
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onEdit(goal)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setConfirmDelete(true)}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => onEdit(goal)}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setConfirmDelete(true)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
