@@ -9,6 +9,7 @@ const stats = (over: Partial<StreakStats>): StreakStats => ({
   doneToday: false,
   active: true,
   unit: "day",
+  rate30: 0,
   ...over,
 });
 

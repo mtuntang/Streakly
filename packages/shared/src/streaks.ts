@@ -35,6 +35,12 @@ export interface StreakStats {
   unit: StreakUnit;
   /** Week-quota progress, present only for weekly cadence. */
   week?: WeekProgress;
+  /**
+   * Completion rate, 0–100. Daily and weekdays goals: the share of scheduled
+   * days in the last 30 that were checked (today counts only once checked).
+   * Weekly goals: the share of the last 4 full weeks that met the quota.
+   */
+  rate30: number;
 }
 
 /** Unit the current streak is counted in for display. */
@@ -70,15 +76,19 @@ export function computeStreaks(
   now: Date = new Date(),
   schedule: Schedule | null = null,
 ): StreakStats {
-  const set = new Set(dateKeys);
-  const sorted = [...dateKeys].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  const today = toKey(now);
+  // Each day counts once, and days after today haven't happened yet: neither
+  // may inflate total, longest, or this week's quota.
+  const sorted = [...new Set(dateKeys)]
+    .filter((key) => key && key <= today)
+    .sort((a, b) => a.localeCompare(b));
+  const set = new Set(sorted);
 
   if (schedule?.type === "weekly") {
     return weeklyStats(set, sorted, now, schedule.timesPerWeek);
   }
 
   const scheduled = (d: Date) => isScheduledDay(schedule, d.getDay());
-  const today = toKey(now);
   // doneToday = checked today, scheduled or not (voluntary rest-day check-ins count).
   const doneToday = set.has(today);
 
@@ -135,7 +145,20 @@ export function computeStreaks(
     }
   }
 
-  return { current, longest, total: sorted.length, doneToday, active, unit: "day" };
+  // --- rate30: checked scheduled days over scheduled days, last 30 days. ---
+  let scheduledDays = 0;
+  let checkedDays = 0;
+  for (let i = 0; i < 30; i++) {
+    const day = addDays(now, -i);
+    if (!scheduled(day)) continue;
+    const key = toKey(day);
+    if (i === 0 && !set.has(key)) continue; // today is still open
+    scheduledDays += 1;
+    if (set.has(key)) checkedDays += 1;
+  }
+  const rate30 = scheduledDays > 0 ? Math.round((checkedDays / scheduledDays) * 100) : 0;
+
+  return { current, longest, total: sorted.length, doneToday, active, unit: "day", rate30 };
 }
 
 /** Computes stats for a weekly goal, where the unit is a calendar week (Sunday start). */
@@ -162,7 +185,9 @@ function weeklyStats(
   const checksThisWeek = countWeek(weekStart, now);
   const daysRemaining = 6 - differenceInCalendarDays(now, weekStart); // after today, through Sat
   const metThisWeek = checksThisWeek >= quota;
-  const reachable = metThisWeek || daysRemaining >= quota - checksThisWeek;
+  // Today is still an open slot until it is checked.
+  const openDays = daysRemaining + (doneToday ? 0 : 1);
+  const reachable = metThisWeek || openDays >= quota - checksThisWeek;
 
   // current = consecutive weeks meeting quota, ending with the previous
   // fully-countable week. The current week counts too once its quota is met.
@@ -179,6 +204,10 @@ function weeklyStats(
     }
   }
 
+  // A week that can no longer reach its quota ends the streak, the same way a
+  // missed scheduled day ends a daily one.
+  if (!reachable) current = 0;
+
   // longest = best run of consecutive weeks meeting quota across history.
   let longest = 0;
   let run = 0;
@@ -186,6 +215,9 @@ function weeklyStats(
   for (const key of sorted) {
     const ws = startOfWeek(fromKey(key), { weekStartsOn: 0 });
     if (prevWeekStart && ws <= prevWeekStart) continue; // week already evaluated
+    // The loop only visits weeks that have check-ins, so a skipped week is an
+    // empty one, and an empty week ends the run.
+    if (prevWeekStart && differenceInCalendarDays(ws, prevWeekStart) > 7) run = 0;
     const we = addDays(ws, 6);
     if (countWeek(ws, we) >= quota) {
       run += 1;
@@ -196,12 +228,20 @@ function weeklyStats(
     prevWeekStart = ws;
   }
 
+  // rate30 = share of the last 4 full weeks (before this one) that met quota.
+  let weeksMet = 0;
+  for (let k = 1; k <= 4; k++) {
+    const ws = addDays(weekStart, -7 * k);
+    if (countWeek(ws, addDays(ws, 6)) >= quota) weeksMet += 1;
+  }
+
   return {
     current,
     longest,
     total: sorted.length,
     doneToday,
     active: reachable,
+    rate30: Math.round((weeksMet / 4) * 100),
     unit: "week",
     week: { quota, done: checksThisWeek, met: metThisWeek },
   };
