@@ -9,13 +9,26 @@ interface StatsBarProps {
   goals: GoalDTO[];
 }
 
+/**
+ * Returns the best value per streak unit, e.g. "12d · 3w". Weekly goals count
+ * streaks in weeks, so their numbers are never mixed into a day maximum.
+ */
+function bestByUnit(goals: GoalDTO[], pick: (g: GoalDTO) => number): string {
+  const best = (unit: "day" | "week") =>
+    goals.filter((g) => g.stats.unit === unit).reduce((m, g) => Math.max(m, pick(g)), 0);
+  const parts: string[] = [];
+  if (goals.some((g) => g.stats.unit === "day")) parts.push(`${best("day")}d`);
+  if (goals.some((g) => g.stats.unit === "week")) parts.push(`${best("week")}w`);
+  return parts.length > 0 ? parts.join(" · ") : "0d";
+}
+
 /** Renders the summary cards (done today, active streaks, records, totals). */
 export function StatsBar({ goals }: StatsBarProps) {
   const total = goals.length;
   const doneToday = goals.filter((g) => g.stats.doneToday).length;
   const activeStreaks = goals.filter((g) => g.stats.active).length;
-  const bestCurrent = goals.reduce((m, g) => Math.max(m, g.stats.current), 0);
-  const longest = goals.reduce((m, g) => Math.max(m, g.stats.longest), 0);
+  const bestCurrent = bestByUnit(goals, (g) => g.stats.current);
+  const longest = bestByUnit(goals, (g) => g.stats.longest);
   const totalCheckIns = goals.reduce((s, g) => s + g.stats.total, 0);
 
   const todayPct = total > 0 ? Math.round((doneToday / total) * 100) : 0;
@@ -32,13 +45,13 @@ export function StatsBar({ goals }: StatsBarProps) {
     {
       label: "Active streaks",
       value: activeStreaks,
-      sub: `${bestCurrent}d best current`,
+      sub: `${bestCurrent} best current`,
       icon: Flame,
       accent: "text-orange-600 dark:text-orange-400",
     },
     {
       label: "Longest streak",
-      value: `${longest}d`,
+      value: longest,
       sub: "personal record",
       icon: Trophy,
       accent: "text-amber-600 dark:text-amber-400",
