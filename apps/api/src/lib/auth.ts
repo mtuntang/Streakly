@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import type { Context, Next } from "hono";
-import { MIN_PASSWORD_LENGTH } from "@streakly/shared";
+import { MIN_PASSWORD_LENGTH, TimeZoneSchema } from "@streakly/shared";
 import { db } from "../db";
 import { assertBootEnv } from "./env-guard";
 import { unauthorized } from "./http";
@@ -29,6 +29,20 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: MIN_PASSWORD_LENGTH,
   },
+  // The user's IANA zone decides which civil day "today" is for their
+  // streaks. The browser sends it at sign-up and via update-user when it
+  // changes; it is optional so users who signed up before it existed keep
+  // working until their next visit fills it in.
+  user: {
+    additionalFields: {
+      timezone: {
+        type: "string",
+        required: false,
+        input: true,
+        validator: { input: TimeZoneSchema },
+      },
+    },
+  },
   // Better Auth skips its origin (CSRF) check under NODE_ENV=test by
   // default. Forcing it on keeps tests exercising the same check that
   // runs in development and production.
@@ -54,14 +68,16 @@ export const auth = betterAuth({
  * Context variables set by authenticateSession. Routers declare this type
  * so `c.get("userId")` is a typed string: a misspelled key fails to
  * compile instead of reading undefined, which Prisma would treat as "no
- * filter" and return every user's rows.
+ * filter" and return every user's rows. timeZone is the user's stored
+ * IANA zone, or null until the browser has sent one.
  */
-export type AuthEnv = { Variables: { userId: string } };
+export type AuthEnv = { Variables: { userId: string; timeZone: string | null } };
 
 /**
- * Resolves the session from the request cookie and puts the user id on the
- * context, or throws 401 when there is no session. Every goals route mounts
- * it before body validation, so a 401 never depends on the shape of the body.
+ * Resolves the session from the request cookie and puts the user id and
+ * time zone on the context, or throws 401 when there is no session. Every
+ * goals route mounts it before body validation, so a 401 never depends on
+ * the shape of the body.
  */
 export async function authenticateSession(
   c: Context<AuthEnv>,
@@ -70,5 +86,6 @@ export async function authenticateSession(
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
   if (!session) throw unauthorized();
   c.set("userId", session.user.id);
+  c.set("timeZone", session.user.timezone ?? null);
   await next();
 }

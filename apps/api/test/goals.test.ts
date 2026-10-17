@@ -248,4 +248,59 @@ describe("goals api", () => {
     const bobGoal = await db.goal.findFirst({ where: { id: b.id } });
     expect(bobGoal?.order).toBe(0);
   });
+
+  // ── "Today" follows the user's time zone ──────────────────────────────
+  // Kiritimati (UTC+14) and Pago Pago (UTC-11) are 25 hours apart, so their
+  // civil days always differ, whatever the server's clock or zone says.
+  const KIRI = {
+    name: "Kiri",
+    email: "kiri@test.dev",
+    password: "kiri-password-12",
+    timezone: "Pacific/Kiritimati",
+  };
+  const PAGO = {
+    name: "Pago",
+    email: "pago@test.dev",
+    password: "pago-password-12",
+    timezone: "Pacific/Pago_Pago",
+  };
+
+  it("a check-in without a date lands on the user's today, not the server's", async () => {
+    const { todayKeyIn } = await import("@streakly/shared");
+    for (const user of [KIRI, PAGO]) {
+      const api = createTestApi(app, await cookieFor(user));
+      const goal = await (await api.goals.create({ name: `${user.name} daily` })).json();
+      const { checked, goal: after } = await (await api.goals.toggle(goal.id)).json();
+      expect(checked).toBe(true);
+      expect(after.checkIns.map((c: { date: string }) => c.date)).toEqual([
+        todayKeyIn(user.timezone),
+      ]);
+      expect(after.stats).toMatchObject({ doneToday: true, current: 1 });
+    }
+  });
+
+  it("streak stats use the user's today, ahead of or behind the server's", async () => {
+    const { todayKeyIn } = await import("@streakly/shared");
+    const kiriToday = todayKeyIn(KIRI.timezone);
+
+    // Kiritimati's today is a future day for the server; it must still count.
+    const kiri = createTestApi(app, await cookieFor(KIRI));
+    const kGoal = await (await kiri.goals.create({ name: "Kiri explicit" })).json();
+    const kRes = await kiri.goals.toggle(kGoal.id, { date: kiriToday });
+    expect((await kRes.json()).goal.stats).toMatchObject({ doneToday: true, current: 1 });
+
+    // The same date is a future day in Pago Pago, so it is not counted there.
+    const pago = createTestApi(app, await cookieFor(PAGO));
+    const pGoal = await (await pago.goals.create({ name: "Pago ahead" })).json();
+    const pRes = await pago.goals.toggle(pGoal.id, { date: kiriToday });
+    expect((await pRes.json()).goal.stats).toMatchObject({ doneToday: false, total: 0 });
+  });
+
+  it("DELETE /:id/checkins without a date removes the user's today", async () => {
+    const api = createTestApi(app, await cookieFor(KIRI));
+    const goal = await (await api.goals.create({ name: "Kiri uncheck" })).json();
+    await api.goals.toggle(goal.id);
+    const { goal: after } = await (await api.goals.uncheck(goal.id)).json();
+    expect(after.checkIns).toEqual([]);
+  });
 });

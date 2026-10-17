@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { getSession } from "@/lib/session";
+import { getSession, syncTimeZone } from "@/lib/session";
 
 /**
  * Checks the session before rendering its children: signed out redirects
@@ -21,13 +21,17 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     let alive = true;
     getSession()
-      .then((session) => {
+      .then(async (session) => {
         if (!alive) return;
         if (session === null) {
           router.replace("/sign-in");
-        } else {
-          setStatus("ok");
+          return;
         }
+        // Before the goals load, so their stats use this browser's day. A
+        // failure only means the old zone stays for now; it is not a reason
+        // to block the app.
+        await syncTimeZone(session).catch(() => {});
+        if (alive) setStatus("ok");
       })
       .catch(() => {
         if (alive) setStatus("error");
