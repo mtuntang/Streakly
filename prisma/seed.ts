@@ -17,6 +17,9 @@ const DEMO_USER = {
   name: "Demo User",
   email: "demo@streakly.dev",
   password: "demo-password-123",
+  // The seeding machine's zone, so the api's "today" for the demo user is
+  // the same local day the check-ins below are generated from.
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
 };
 
 
@@ -114,8 +117,9 @@ async function main() {
       if (s.pattern[i] === 1) {
         const d = new Date(today);
         d.setDate(today.getDate() - (len - 1 - i));
-        // The local calendar day, the same "today" the api uses. toISOString
-        // would give the UTC day, which is already tomorrow on a US evening.
+        // The local calendar day, which is the demo user's "today" in the
+        // api (their zone is this machine's). toISOString would give the UTC
+        // day, which is already tomorrow on a US evening.
         const key = toKey(d);
         await db.checkIn.upsert({
           where: { goalId_date: { goalId: goal.id, date: new Date(key) } },
