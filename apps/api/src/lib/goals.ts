@@ -192,11 +192,14 @@ export async function deleteGoal(userId: string, id: string): Promise<void> {
   assertFound(count);
 }
 
-/** Sets each goal's order to its index in `ids`, in one transaction. */
+/**
+ * Sets each goal's order to its index in `ids`, in one transaction.
+ * Ids the user does not own match nothing and are skipped; a list where
+ * none matched is a 404, like any other write to a missing goal.
+ */
 export async function reorderGoals(userId: string, ids: string[]): Promise<void> {
   ids.forEach(assertGoalId);
-  // Scoped per-goal updateMany: an id owned by someone else leaves count 0.
-  await db.$transaction(
+  const results = await db.$transaction(
     ids.map((id, index) =>
       db.goal.updateMany({
         where: { id, userId },
@@ -204,6 +207,7 @@ export async function reorderGoals(userId: string, ids: string[]): Promise<void>
       }),
     ),
   );
+  assertFound(results.reduce((sum, { count }) => sum + count, 0));
 }
 
 /**
