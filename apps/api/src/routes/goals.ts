@@ -97,7 +97,6 @@ async function deleteGoalRoute(c: Context<AuthEnv>) {
 async function toggleCheckInRoute(c: Context<AuthEnv>) {
   const userId = c.get("userId");
   const id = c.req.param("id")!;
-  await loadGoalOrThrow(c, id);
 
   const { date } = await parseBody(c, CheckInBodySchema);
   const dateKey = date ?? userTodayKey(c);
@@ -110,7 +109,6 @@ async function toggleCheckInRoute(c: Context<AuthEnv>) {
 async function removeCheckInRoute(c: Context<AuthEnv>) {
   const userId = c.get("userId");
   const id = c.req.param("id")!;
-  await loadGoalOrThrow(c, id);
 
   const parsed = DateKeySchema.safeParse(c.req.query("date") ?? userTodayKey(c));
   if (!parsed.success) throw badRequest(parsed.error.issues[0]!.message);

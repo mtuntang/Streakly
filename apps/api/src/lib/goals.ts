@@ -211,15 +211,18 @@ export async function reorderGoals(userId: string, ids: string[]): Promise<void>
 }
 
 /**
- * Loads the user's goal, or throws 404 when it is missing or foreign.
+ * Throws 404 unless the user owns goal `id`.
  * Every check-in change passes through this check, which is why check-in
- * rows need no userId of their own: ownership flows goal → check-in.
+ * rows need no userId of their own: ownership flows goal → check-in. It
+ * reads only the id: the caller loads the full goal for its response.
  */
-async function requireOwnedGoal(userId: string, id: string): Promise<GoalRow> {
+async function requireOwnedGoal(userId: string, id: string): Promise<void> {
   assertGoalId(id);
-  const goal = await loadGoalRow(userId, id);
+  const goal = await db.goal.findFirst({
+    where: { id, userId },
+    select: { id: true },
+  });
   if (!goal) throw notFound();
-  return goal;
 }
 
 /**
