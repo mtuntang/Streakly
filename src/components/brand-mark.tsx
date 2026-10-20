@@ -9,14 +9,24 @@ export const CHECKIN_EVENT = "streakly:checkin";
 const WORD = "Streakly";
 
 /**
- * Flame and title are drawn as equals: the flame's height matches the
- * letters' optical height (cap height plus the point a flame needs), its
- * stroke matches the ExtraBold stems, and its base sits on the text
- * baseline like a round letter. Sizes are in em so the pair scales as one.
+ * Flame and title are drawn as equals: the flame stands exactly as tall as
+ * the S. The viewBox is cropped to the flame's ink (stroke included), so
+ * the svg box is the visible flame. Its height is the S's measured height
+ * in Figtree ExtraBold (top 0.719em above the baseline, overshoot 0.016em
+ * below), and the negative bottom margin drops it by that overshoot so the
+ * flame's tip meets the S's top and its base meets the S's bottom.
  */
+const S_HEIGHT = "0.7344em";
+const S_OVERSHOOT = "-0.0156em";
+
+/** Flame ink box in viewBox units: the contour plus half the stroke. */
+const STROKE = 3.2;
+const INK = { x: 4.7 - STROKE / 2, y: 2.2 - STROKE / 2, w: 14.6 + STROKE, h: 19.8 + STROKE };
+
 const SIZES = {
-  md: "text-[21px]",
-  lg: "text-[30px]",
+  // 24px on phones keeps the header's four controls on one row at 375px.
+  md: "text-[24px] sm:text-[32px]",
+  lg: "text-[44px]",
 } as const;
 
 /**
@@ -53,7 +63,7 @@ export function BrandMark({
       // A new key replays the flare for each check-in in a row.
       key={flares}
       className={cn(
-        "brand-mark group/brand inline-flex w-fit items-baseline gap-[0.12em] leading-none select-none",
+        "brand-mark group/brand inline-flex w-fit items-baseline gap-[0.09em] leading-none select-none",
         flares > 0 && "is-flaring",
         SIZES[size],
         className,
@@ -62,10 +72,14 @@ export function BrandMark({
       aria-label="Streakly"
     >
       <svg
-        viewBox="0 0 24 24"
+        viewBox={`${INK.x} ${INK.y} ${INK.w} ${INK.h}`}
         fill="none"
-        className="brand-flame h-[1.34em] w-[1.34em] shrink-0 self-baseline overflow-visible"
-        style={{ marginBottom: "-0.16em", marginLeft: "-0.14em" }}
+        className="brand-flame shrink-0 self-baseline overflow-visible"
+        style={{
+          height: S_HEIGHT,
+          width: `calc(${S_HEIGHT} * ${INK.w / INK.h})`,
+          marginBottom: S_OVERSHOOT,
+        }}
         aria-hidden
       >
         <defs>
@@ -78,7 +92,7 @@ export function BrandMark({
           className="brand-flame-outline"
           d="M12 2.2c.7 3.3 2.7 5.2 4.4 7C18.1 11 19.3 13 19.3 15.4c0 3.8-3.2 6.6-7.3 6.6s-7.3-2.8-7.3-6.6c0-2.4 1.1-4.4 2.7-5.9.2 1.7 1.1 2.9 2.3 3.5C9.6 10 10.4 5.2 12 2.2Z"
           stroke={`url(#${uid}-ink)`}
-          strokeWidth={2.6}
+          strokeWidth={STROKE}
           strokeLinejoin="round"
         />
         <path
