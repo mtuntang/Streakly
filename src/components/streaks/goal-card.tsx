@@ -6,8 +6,11 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   Check,
   ChevronRight,
+  Circle,
+  CircleAlert,
   Flame,
   GripVertical,
+  History,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -47,6 +50,16 @@ import { GoalIcon } from "./goal-icon";
 import { Heatmap } from "./heatmap";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { goalStatus, type StatusTone } from "./goal-status";
+import { CHECKIN_EVENT } from "@/components/brand-mark";
+
+/** Status line color per tone: only a risk borrows the warning color. */
+const TONE_TEXT: Record<StatusTone, string> = {
+  done: "text-muted-foreground",
+  due: "text-muted-foreground",
+  rest: "text-muted-foreground",
+  risk: "font-medium text-amber-800 dark:text-amber-300",
+};
 
 interface GoalCardProps {
   goal: GoalDTO;
@@ -74,10 +87,26 @@ export function GoalCard({
     attributes,
     listeners,
     setNodeRef,
+    setActivatorNodeRef,
     transform,
     transition,
     isDragging,
   } = useSortable({ id: goal.id });
+
+  // A drag ends with the pointer over the card it moved, so the browser
+  // fires a click on whatever button sat under it. Swallow that one click
+  // so dropping a card never checks it in or opens its history.
+  React.useLayoutEffect(() => {
+    if (!isDragging) return;
+    return () => {
+      const swallow = (e: MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+      };
+      window.addEventListener("click", swallow, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 0);
+    };
+  }, [isDragging]);
 
   async function handleDelete() {
     setDeleting(true);
@@ -102,47 +131,41 @@ export function GoalCard({
   const isWeekly = goal.schedule?.type === "weekly";
   const unitShort = isWeekly ? "w" : "d";
   const unitLong = isWeekly ? "week" : "day";
-  const atRisk = cardState.kind === "checkin" && cardState.urgency === "quota-at-risk";
+  const status = goalStatus(goal, cardState, today);
 
-  // Status line under the streak: honest per-cadence states, never the
-  // empty-state copy.
-  const statusMessage = () => {
-    if (isWeekly) {
-      const week = goal.stats.week;
-      if (week?.met) return "Quota met this week";
-      const left = Math.max((week?.quota ?? 0) - (week?.done ?? 0), 0);
-      if (atRisk) {
-        // Days left in the week counting today (the week ends Saturday).
-        const daysLeft = 7 - today.getDay();
-        return `${left} to go · ${daysLeft === 1 ? "last day" : `${daysLeft} days left`}`;
-      }
-      return `${left} to go this week`;
-    }
-    if (cardState.kind === "rest") return `Rest day — back ${cardState.nextDayShort}`;
-    if (doneToday) return "Completed today";
-    if (goal.stats.current > 0) {
-      return goal.stats.active ? "Streak alive — check in today" : "Current streak";
-    }
-    if (cardState.kind === "checkin" && cardState.brokenStreak) {
-      return "Streak broken — start again today";
-    }
-    return "No active streak yet";
-  };
+  // Counts check-ins made while this card is on screen; each one plays the
+  // style's reward once. Derived during render (not in an effect) so the
+  // optimistic flip and the reward land in the same frame.
+  const [shownDone, setShownDone] = React.useState(doneToday);
+  const [rewards, setRewards] = React.useState(0);
+  if (doneToday !== shownDone) {
+    setShownDone(doneToday);
+    if (doneToday) setRewards(rewards + 1);
+  }
+
+  // Tell the header's flame, which flares for every check-in.
+  React.useEffect(() => {
+    if (rewards > 0) window.dispatchEvent(new Event(CHECKIN_EVENT));
+  }, [rewards]);
 
   return (
     <>
+      {/* The whole card is the drag surface: a mouse drags after moving
+          5px (so clicks on its buttons still land), a finger after a short
+          press (so the page still scrolls). The grip is the keyboard
+          handle and the visible hint. */}
       <Card
         ref={setNodeRef}
+        id={`goal-${goal.id}`}
         style={{
-          transform: CSS.Transform.toString(transform),
+          transform: CSS.Translate.toString(transform),
           transition,
-          willChange: "transform",
         }}
         className={cn(
-          "group relative gap-0 overflow-hidden py-0 transition-shadow hover:shadow-md",
-          "border-border/70",
-          isDragging && "z-10 opacity-80 shadow-xl",
+          "group relative cursor-grab touch-manipulation gap-0 overflow-hidden py-0 select-none",
+          isDragging && "card-lifted z-10 cursor-grabbing",
         )}
+        {...listeners}
       >
         {/* color accent strip */}
         <div className={cn("absolute inset-x-0 top-0 h-1", colorCfg.bg)} />
@@ -179,10 +202,10 @@ export function GoalCard({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-10 sm:size-9 cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
-                aria-label={`Drag to reorder ${goal.name}`}
+                ref={setActivatorNodeRef}
+                className="size-10 cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing sm:size-9"
+                aria-label={`Reorder ${goal.name}: drag the card, or press Space and use the arrow keys`}
                 {...attributes}
-                {...listeners}
               >
                 <GripVertical className="h-4 w-4" />
               </Button>
@@ -230,26 +253,24 @@ export function GoalCard({
                   {goal.stats.current === 1 ? "" : "s"}
                 </span>
               </div>
-              <p
-                className={cn(
-                  "mt-1.5 text-xs",
-                  atRisk ? cn("font-medium", colorCfg.text) : "text-muted-foreground",
-                )}
-              >
-                {statusMessage()}
+              <p className={cn("mt-1.5 flex items-center gap-1 text-xs", TONE_TEXT[status.tone])}>
+                {status.tone === "risk" ? (
+                  <CircleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                ) : null}
+                {status.text}
               </p>
             </div>
             <div className="shrink-0 space-y-0.5 text-right text-xs text-muted-foreground">
               <p className="flex items-center justify-end gap-1">
                 <Trophy className="h-3 w-3" aria-hidden />
                 Best{" "}
-                <span className="font-medium tabular-nums text-foreground">
+                <span className="font-display font-medium tabular-nums text-foreground">
                   {goal.stats.longest}
                   {unitShort}
                 </span>
               </p>
               <p>
-                <span className="font-medium tabular-nums text-foreground">
+                <span className="font-display font-medium tabular-nums text-foreground">
                   {goal.stats.total}
                 </span>{" "}
                 total
@@ -268,38 +289,58 @@ export function GoalCard({
           ) : null}
 
           {/* Today toggle; on rest days a voluntary check-in */}
-          <Button
-            onClick={() => onToggleToday(goal)}
-            variant={buttonStyle.variant}
-            aria-pressed={doneToday}
-            className={cn(
-              "mt-4 h-10 w-full",
-              buttonStyle.filled
-                ? cn(colorCfg.fill, "border-transparent hover:opacity-90")
-                : cn(
-                    "border-dashed bg-transparent hover:bg-accent dark:bg-transparent",
-                    cardState.kind === "rest" ? "text-muted-foreground" : "text-foreground",
-                  ),
-            )}
-          >
-            {doneToday ? (
-              <>
-                <Check className="h-4 w-4" />
-                {cardState.kind === "rest" ? "Checked in on a rest day" : "Completed today"}
-              </>
-            ) : cardState.kind === "rest" ? (
-              `Do it anyway (rest day — back ${cardState.nextDayShort})`
-            ) : (
-              "Mark done today"
-            )}
-          </Button>
+          <div className="relative mt-4">
+            {/* Three looks, by what the button asks: due = an edge and label
+                in the goal color, done = a quiet tint of it, rest = dashed
+                and neutral, since nothing is due. */}
+            <Button
+              onClick={() => onToggleToday(goal)}
+              variant={buttonStyle.variant}
+              aria-pressed={doneToday}
+              data-checkin
+              className={cn(
+                "h-11 w-full border-0 text-[15px] shadow-none transition-[background-color,color,box-shadow,transform] duration-200 active:translate-y-px",
+                buttonStyle.filled
+                  ? colorCfg.fillSoft
+                  : cardState.kind === "rest"
+                    ? "border border-dashed border-border bg-transparent text-muted-foreground hover:bg-accent dark:bg-transparent"
+                    : colorCfg.action,
+              )}
+            >
+              {doneToday ? (
+                <>
+                  <Check
+                    className={cn("h-4 w-4", rewards > 0 && "check-draw")}
+                    strokeWidth={2.5}
+                  />
+                  {cardState.kind === "rest" ? "Checked in on a rest day" : "Completed today"}
+                </>
+              ) : cardState.kind === "rest" ? (
+                `Do it anyway (rest day — back ${cardState.nextDayShort})`
+              ) : (
+                <>
+                  <Circle className="h-4 w-4 opacity-70" />
+                  Mark done today
+                </>
+              )}
+            </Button>
+            {rewards > 0 ? (
+              <CheckinReward key={rewards} text={colorCfg.text} />
+            ) : null}
+            {/* The rewards are visual only; this says the same thing to screen readers. */}
+            <span className="sr-only" aria-live="polite">
+              {rewards > 0 && doneToday
+                ? `${goal.name} checked in. Streak: ${goal.stats.current} ${unitLong}${goal.stats.current === 1 ? "" : "s"}.`
+                : ""}
+            </span>
+          </div>
 
-          {/* Mini heatmap: opens the full history */}
-          <button
-            type="button"
+          {/* Mini heatmap. Clicking the grid opens the full history for
+              pointer users; the History button is the labelled way in for
+              everyone, so the grid itself stays out of the tab order. */}
+          <div
             onClick={() => onOpenDetail(goal)}
-            className="group/history mt-4 block w-full rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
-            aria-label={`View full history for ${goal.name}`}
+            className="history-zone mt-4 -mx-2 cursor-pointer rounded-lg px-2 pt-2 transition-colors hover:bg-muted/50"
           >
             <Heatmap
               dateKeys={goal.checkIns.map((c) => c.date)}
@@ -308,13 +349,28 @@ export function GoalCard({
               fluid
               showMonths={false}
               action={
-                <span className="inline-flex items-center gap-0.5 transition-colors group-hover/history:text-foreground group-focus-visible/history:text-foreground">
+                // A card-white pill with a goal-colored edge and clock, so it
+                // reads as a button and never as one more heatmap cell.
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenDetail(goal);
+                  }}
+                  className={cn(
+                    "history-btn -mr-1 h-9 gap-1.5 rounded-full bg-card pr-2.5 pl-3 text-xs font-semibold text-foreground shadow-xs ring-1 ring-inset hover:bg-card sm:h-8 dark:bg-card dark:hover:bg-accent",
+                    colorCfg.ring,
+                  )}
+                  aria-label={`View full history for ${goal.name}`}
+                >
+                  <History className={cn("history-clock h-3.5 w-3.5", colorCfg.text)} aria-hidden />
                   History
-                  <ChevronRight className="h-3 w-3" aria-hidden />
-                </span>
+                  <ChevronRight className="history-arrow h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                </Button>
               }
             />
-          </button>
+          </div>
         </CardContent>
       </Card>
 
@@ -365,12 +421,24 @@ function StreakNumber({ value }: { value: number }) {
     <span
       key={changes}
       className={cn(
-        "text-4xl font-semibold leading-none tracking-tight tabular-nums",
-        changes > 0 &&
-          "animate-in fade-in-0 slide-in-from-bottom-2 duration-300 ease-out motion-reduce:animate-none",
+        "streak-num font-display text-4xl font-semibold leading-none tracking-tight tabular-nums",
+        changes > 0 && "is-changed",
       )}
     >
       {value}
+    </span>
+  );
+}
+
+/**
+ * Plays the check-in reward over the button: a soft ripple in the goal's
+ * color. It is decorative and dropped under reduced motion; screen readers
+ * get the live announcement and the button's pressed state instead.
+ */
+function CheckinReward({ text }: { text: string }) {
+  return (
+    <span aria-hidden className="pointer-events-none absolute inset-0">
+      <span className={cn("checkin-ripple absolute inset-0 rounded-md bg-current", text)} />
     </span>
   );
 }

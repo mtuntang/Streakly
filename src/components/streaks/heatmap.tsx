@@ -88,6 +88,17 @@ export function Heatmap({
 
   const [hover, setHover] = React.useState<HeatmapCell | null>(null);
 
+  // Today's cell lands with a small pop when a check-in fills it while the
+  // grid is on screen. It is derived during render, like the card's
+  // reward, so a page load never animates every card's cell at once.
+  const todayOn = dateKeys.includes(today);
+  const [shownTodayOn, setShownTodayOn] = React.useState(todayOn);
+  const [landings, setLandings] = React.useState(0);
+  if (todayOn !== shownTodayOn) {
+    setShownTodayOn(todayOn);
+    if (todayOn) setLandings(landings + 1);
+  }
+
   const cellPx = cellSize;
   const step = cellPx + gap;
   const width = weeks * step;
@@ -125,20 +136,21 @@ export function Heatmap({
               const on = cell.count > 0;
               return (
                 <div
-                  key={cell.key}
+                  key={isToday ? `${cell.key}-${landings}` : cell.key}
                   onMouseEnter={() => setHover(cell)}
                   onMouseLeave={() => setHover(null)}
                   className={cn(
-                    "rounded-[3px] transition-colors",
+                    "rounded-[var(--cell-radius)] transition-colors",
                     isFuture
                       ? "bg-transparent"
                       : on
                         ? colorCfg.cellOn
-                        : "bg-foreground/15 dark:bg-white/[0.13]",
+                        : "bg-foreground/15 dark:bg-cell-empty",
                     // Today is outlined in the goal's own color, so it reads
                     // as "today" rather than as a focus or selection ring.
                     isToday &&
                       cn("outline-2 outline-offset-1 outline-current", colorCfg.text),
+                    isToday && on && landings > 0 && "cell-land",
                   )}
                   style={fluid ? { aspectRatio: "1" } : { width: cellPx, height: cellPx }}
                   title={`${prettyDate(cell.key)}${on ? " — done" : ""}`}
@@ -148,11 +160,11 @@ export function Heatmap({
           </div>
         ))}
       </div>
-      <div className="mt-2 flex h-4 items-center gap-2 text-xs text-muted-foreground">
+      <div className={cn("flex items-center gap-2 text-xs text-muted-foreground", action ? "mt-2.5 min-h-8 pb-2" : "sticky left-0 mt-2 h-4 w-fit")}>
         <span>
           {hover
             ? `${prettyDate(hover.key)} — ${hover.count > 0 ? "done" : "not done"}`
-            : `Last ${weeks} weeks`}
+            : `${doneInWindow} check-in${doneInWindow === 1 ? "" : "s"} · last ${weeks} weeks`}
         </span>
         {action ? <span className="ml-auto">{action}</span> : null}
       </div>
