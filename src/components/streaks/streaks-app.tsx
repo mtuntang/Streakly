@@ -12,7 +12,6 @@ import {
 } from "@dnd-kit/core";
 import {
   SortableContext,
-  arrayMove,
   rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
@@ -24,22 +23,38 @@ import { GoalCard } from "./goal-card";
 import { GoalFormDialog } from "./goal-form-dialog";
 import { GoalDetailSheet } from "./goal-detail-sheet";
 import { EmptyState } from "./empty-state";
-import { todayKey, type GoalDTO } from "@streakly/shared";
+import type { GoalDTO } from "@streakly/shared";
 import { useToast } from "@/hooks/use-toast";
+import { useGoals } from "@/hooks/use-goals";
 import { signOut } from "@/lib/session";
-import { apiFetch } from "@/lib/api-fetch";
 
 /** Renders the signed-in app: stats, the sortable goal grid, and its dialogs. */
 export function StreaksApp() {
   const { toast } = useToast();
-  const [goals, setGoals] = React.useState<GoalDTO[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [refreshing, setRefreshing] = React.useState(false);
+  const {
+    goals,
+    loading,
+    refreshing,
+    refresh,
+    toggleToday,
+    reorder,
+    saveGoal,
+    deleteGoal,
+  } = useGoals();
 
   const [formOpen, setFormOpen] = React.useState(false);
+  // Changes on every open, so the form remounts with fresh fields.
+  const [formKey, setFormKey] = React.useState(0);
   const [editingGoal, setEditingGoal] = React.useState<GoalDTO | null>(null);
-  const [detailGoal, setDetailGoal] = React.useState<GoalDTO | null>(null);
+  const [detailId, setDetailId] = React.useState<string | null>(null);
   const [detailOpen, setDetailOpen] = React.useState(false);
+
+  // The detail sheet always shows the goal as it is in the list now, so a
+  // check-in or edit shows up in the open sheet without any syncing.
+  const detailGoal = React.useMemo(
+    () => goals.find((g) => g.id === detailId) ?? null,
+    [goals, detailId],
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -49,83 +64,14 @@ export function StreaksApp() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  // Goal ids with a check-in request in flight (see handleToggleToday).
-  const togglesInFlight = React.useRef(new Set<string>());
-
-  const fetchGoals = React.useCallback(
-    async (silent = false, retries = 2) => {
-      if (!silent) setLoading(true);
-      setRefreshing(true);
-      let lastError: Error | null = null;
-      for (let attempt = 0; attempt <= retries; attempt++) {
-        try {
-          const res = await apiFetch("/api/goals", { cache: "no-store" });
-          if (!res.ok) throw new Error(`Server responded with ${res.status}`);
-          const data: GoalDTO[] = await res.json();
-          if (!Array.isArray(data)) throw new Error("Invalid response format");
-          setGoals(data);
-          setLoading(false);
-          setRefreshing(false);
-          return; // Success — exit early
-        } catch (err) {
-          lastError = err instanceof Error ? err : new Error("Unknown error");
-          if (attempt < retries) {
-            // Wait a bit before retrying (exponential backoff)
-            await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
-          }
-        }
-      }
-      // All retries exhausted
-      toast({
-        title: "Could not load goals",
-        description:
-          lastError?.message === "Failed to fetch"
-            ? "Network error — check your connection."
-            : lastError?.message ?? "An unexpected error occurred.",
-        variant: "destructive",
-      });
-      if (!silent) setGoals([]);
-      setLoading(false);
-      setRefreshing(false);
-    },
-    [toast],
-  );
-
-  React.useEffect(() => {
-    fetchGoals();
-  }, [fetchGoals]);
-
-  // "Done today" and the streaks are computed for a date, so reload them when
-  // the local date changes while the page is open. The minute check also
-  // catches up after a laptop sleeps, and returning to the tab checks at once.
-  React.useEffect(() => {
-    let day = todayKey();
-    const refreshIfNewDay = () => {
-      const now = todayKey();
-      if (now !== day) {
-        day = now;
-        fetchGoals(true);
-      }
-    };
-    const timer = setInterval(refreshIfNewDay, 60_000);
-    document.addEventListener("visibilitychange", refreshIfNewDay);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", refreshIfNewDay);
-    };
-  }, [fetchGoals]);
-
-  // Keep detail view in sync with the latest goal data.
-  React.useEffect(() => {
-    if (detailGoal) {
-      const updated = goals.find((g) => g.id === detailGoal.id);
-      if (updated && updated !== detailGoal) setDetailGoal(updated);
-    }
-  }, [goals, detailGoal]);
+  function openForm(goal: GoalDTO | null) {
+    setEditingGoal(goal);
+    setFormKey((k) => k + 1);
+    setFormOpen(true);
+  }
 
   function handleCreate() {
-    setEditingGoal(null);
-    setFormOpen(true);
+    openForm(null);
   }
 
   // Clears the session cookie and returns to the login screen; local
@@ -140,122 +86,19 @@ export function StreaksApp() {
   }
 
   function handleEdit(goal: GoalDTO) {
-    setEditingGoal(goal);
-    setFormOpen(true);
+    openForm(goal);
     setDetailOpen(false);
   }
 
   function handleOpenDetail(goal: GoalDTO) {
-    setDetailGoal(goal);
+    setDetailId(goal.id);
     setDetailOpen(true);
   }
 
-  function handleSaved(saved: GoalDTO) {
-    setGoals((prev) => {
-      const exists = prev.some((g) => g.id === saved.id);
-      return exists
-        ? prev.map((g) => (g.id === saved.id ? saved : g))
-        : [...prev, saved];
-    });
-  }
-
-  function handleDeleted(goal: GoalDTO) {
-    setGoals((prev) => prev.filter((g) => g.id !== goal.id));
-  }
-
-  async function handleDragEnd(event: DragEndEvent) {
+  function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    setGoals((prev) => {
-      const oldIndex = prev.findIndex((g) => g.id === active.id);
-      const newIndex = prev.findIndex((g) => g.id === over.id);
-      if (oldIndex === -1 || newIndex === -1) return prev;
-      return arrayMove(prev, oldIndex, newIndex);
-    });
-
-    // Persist the new order to the database.
-    try {
-      const ids = goals.map((g) => g.id);
-      const oldIndex = ids.indexOf(String(active.id));
-      const newIndex = ids.indexOf(String(over.id));
-      if (oldIndex === -1 || newIndex === -1) return;
-      const reordered = arrayMove(ids, oldIndex, newIndex);
-      const res = await apiFetch("/api/goals/reorder", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: reordered }),
-      });
-      if (!res.ok) throw new Error("Failed to reorder");
-    } catch {
-      toast({
-        title: "Could not save order",
-        description: "Your changes may not persist after refresh.",
-        variant: "destructive",
-      });
-    }
-  }
-
-  async function handleToggleToday(goal: GoalDTO) {
-    // The endpoint is a toggle, so a second click while the first request is
-    // in flight would undo it. Ignore clicks until the goal's request settles.
-    if (togglesInFlight.current.has(goal.id)) return;
-    togglesInFlight.current.add(goal.id);
-    // Read the date at click time: a tab left open past midnight must check
-    // in for the new day, not the day the page last rendered.
-    const today = todayKey();
-    // Optimistic update: flip doneToday too, because the card's button reads
-    // it, so the click shows at once instead of when the server replies.
-    const wasDone = goal.stats.doneToday;
-    setGoals((prev) =>
-      prev.map((g) => {
-        if (g.id !== goal.id) return g;
-        const checkIns = wasDone
-          ? g.checkIns.filter((c) => c.date !== today)
-          : [...g.checkIns, { date: today }];
-        return { ...g, checkIns, stats: { ...g.stats, doneToday: !wasDone } };
-      }),
-    );
-
-    try {
-      const res = await apiFetch(`/api/goals/${goal.id}/checkins`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: today }),
-      });
-      if (!res.ok) throw new Error("Failed to toggle");
-      const data = await res.json();
-      if (data.goal) {
-        setGoals((prev) =>
-          prev.map((g) => (g.id === data.goal.id ? data.goal : g)),
-        );
-      }
-      if (!wasDone) {
-        toast({
-          title: "Nice work! 🔥",
-          description: `Checked in for ${goal.name}`,
-        });
-      }
-    } catch {
-      // Undo only this click, on the goal as it is now: restoring the
-      // pre-click copy would also wipe anything that arrived since, such as
-      // a refresh that brought newer data.
-      setGoals((prev) =>
-        prev.map((g) => {
-          if (g.id !== goal.id) return g;
-          const checkIns = wasDone
-            ? [...g.checkIns, { date: today }]
-            : g.checkIns.filter((c) => c.date !== today);
-          return { ...g, checkIns, stats: { ...g.stats, doneToday: wasDone } };
-        }),
-      );
-      toast({
-        title: "Could not check in",
-        variant: "destructive",
-      });
-    } finally {
-      togglesInFlight.current.delete(goal.id);
-    }
+    if (!over) return;
+    reorder(String(active.id), String(over.id));
   }
 
   const doneTodayCount = goals.filter((g) => g.stats.doneToday).length;
@@ -284,7 +127,7 @@ export function StreaksApp() {
               variant="ghost"
               size="icon"
               className="rounded-full"
-              onClick={() => fetchGoals(true)}
+              onClick={refresh}
               aria-label="Refresh"
               disabled={refreshing}
             >
@@ -347,9 +190,9 @@ export function StreaksApp() {
                     <GoalCard
                       key={goal.id}
                       goal={goal}
-                      onToggleToday={handleToggleToday}
+                      onToggleToday={toggleToday}
                       onEdit={handleEdit}
-                      onDeleted={handleDeleted}
+                      onDelete={deleteGoal}
                       onOpenDetail={handleOpenDetail}
                     />
                   ))}
@@ -375,10 +218,11 @@ export function StreaksApp() {
 
       {/* Dialogs */}
       <GoalFormDialog
+        key={formKey}
         open={formOpen}
         onOpenChange={setFormOpen}
         goal={editingGoal}
-        onSaved={handleSaved}
+        onSave={saveGoal}
       />
       <GoalDetailSheet
         goal={detailGoal}

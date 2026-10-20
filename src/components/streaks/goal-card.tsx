@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { apiFetch } from "@/lib/api-fetch";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Flame, MoreHorizontal, Pencil, Trash2, Trophy, Check, GripHorizontal } from "lucide-react";
@@ -44,7 +43,8 @@ interface GoalCardProps {
   goal: GoalDTO;
   onToggleToday: (goal: GoalDTO) => void;
   onEdit: (goal: GoalDTO) => void;
-  onDeleted: (goal: GoalDTO) => void;
+  /** Deletes the goal; rejects on failure so the dialog can stay open. */
+  onDelete: (id: string) => Promise<void>;
   onOpenDetail: (goal: GoalDTO) => void;
 }
 
@@ -53,7 +53,7 @@ export function GoalCard({
   goal,
   onToggleToday,
   onEdit,
-  onDeleted,
+  onDelete,
   onOpenDetail,
 }: GoalCardProps) {
   const colorCfg = getColor(goal.color);
@@ -73,10 +73,8 @@ export function GoalCard({
   async function handleDelete() {
     setDeleting(true);
     try {
-      const res = await apiFetch(`/api/goals/${goal.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete");
+      await onDelete(goal.id);
       toast({ title: "Goal deleted", description: goal.name });
-      onDeleted(goal);
     } catch {
       toast({
         title: "Could not delete goal",
