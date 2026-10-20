@@ -63,7 +63,8 @@ model User {
   email         String    @unique
   emailVerified Boolean   @default(false)
   image         String?
-  // IANA zone captured at signup, refreshed on session (PR D).
+  // IANA zone from the browser: sent at sign-up, synced when it changes.
+  // Null until a pre-existing user's next visit.
   timezone      String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

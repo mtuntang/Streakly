@@ -146,6 +146,67 @@ describe("auth api", () => {
     expect(res.status).toBe(403);
   });
 
+  // ── Time zone ─────────────────────────────────────────────────────────
+  const signUpAs = (email: string, extra: Record<string, unknown>) =>
+    app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...USER, email, ...extra }),
+    });
+
+  const cookieOf = (res: Response) =>
+    `better-auth.session_token=${(res.headers.get("set-cookie") ?? "").match(/session_token=([^;]+)/)?.[1]}`;
+
+  // A cookie-bearing write needs the web Origin, as a browser sends it:
+  // Better Auth's CSRF check rejects it with 403 otherwise.
+  const updateUser = (cookie: string, body: Record<string, unknown>) =>
+    app.request("/api/auth/update-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", cookie, Origin: "http://localhost:3000" },
+      body: JSON.stringify(body),
+    });
+
+  it("sign-up stores the time zone and get-session returns it", async () => {
+    const res = await signUpAs("tz@test.dev", { timezone: "Asia/Kolkata" });
+    expect(res.status).toBe(200);
+    const { db } = await import("../src/db");
+    const user = await db.user.findUnique({ where: { email: "tz@test.dev" } });
+    expect(user?.timezone).toBe("Asia/Kolkata");
+
+    const me = await app.request("/api/auth/get-session", {
+      headers: { cookie: cookieOf(res) },
+    });
+    expect((await me.json())?.user.timezone).toBe("Asia/Kolkata");
+  });
+
+  it("sign-up without a time zone still works (stored as null)", async () => {
+    expect((await signUpAs("notz@test.dev", {})).status).toBe(200);
+    const { db } = await import("../src/db");
+    const user = await db.user.findUnique({ where: { email: "notz@test.dev" } });
+    expect(user?.timezone).toBeNull();
+  });
+
+  it("sign-up with an invalid time zone is rejected and creates no user", async () => {
+    for (const [i, timezone] of ["Mars/Olympus", "+05:00", 42].entries()) {
+      const email = `badtz${i}@test.dev`;
+      const res = await signUpAs(email, { timezone });
+      expect(res.status).toBe(400);
+      const { db } = await import("../src/db");
+      expect(await db.user.findUnique({ where: { email } })).toBeNull();
+    }
+  });
+
+  it("update-user sets a valid time zone and rejects an invalid one", async () => {
+    const res = await signUpAs("move@test.dev", {});
+    const cookie = cookieOf(res);
+    expect((await updateUser(cookie, { timezone: "Europe/London" })).status).toBe(200);
+    expect((await updateUser(cookie, { timezone: "Nowhere/Land" })).status).toBe(400);
+
+    const { db } = await import("../src/db");
+    const user = await db.user.findUnique({ where: { email: "move@test.dev" } });
+    expect(user?.timezone).toBe("Europe/London");
+  });
+
   it("credential endpoints get the custom 5-per-minute rate limit", async () => {
     // The limiter itself is off under test; this pins the config, because a
     // misnamed option key is silently ignored by Better Auth.

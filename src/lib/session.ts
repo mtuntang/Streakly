@@ -1,6 +1,7 @@
 "use client";
 
 import { z } from "zod";
+import { isValidTimeZone } from "@streakly/shared";
 
 /**
  * Session client for the web app. Every call goes through the existing
@@ -14,6 +15,7 @@ const userSchema = z.object({
   id: z.string(),
   email: z.string(),
   name: z.string(),
+  timezone: z.string().nullish(),
 });
 
 const signInSchema = z.object({ user: userSchema }).passthrough();
@@ -36,8 +38,8 @@ async function errorMessage(res: Response): Promise<string> {
 /** Posts to an auth endpoint and returns the user, or throws the server's message. */
 async function postAuth(
   path: string,
-  body: Record<string, string>,
-): Promise<{ id: string; email: string; name: string }> {
+  body: Record<string, string | undefined>,
+): Promise<z.infer<typeof userSchema>> {
   const res = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -55,9 +57,44 @@ export function signIn(email: string, password: string) {
   return postAuth("/api/auth/sign-in/email", { email, password });
 }
 
-/** Creates the account and signs in (Better Auth signs up+in in one call). */
+/**
+ * Returns the browser's IANA time zone, or undefined when the runtime
+ * reports none or one the server would reject.
+ */
+function browserTimeZone(): string | undefined {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return zone && isValidTimeZone(zone) ? zone : undefined;
+}
+
+/**
+ * Creates the account and signs in (Better Auth signs up+in in one call).
+ * The browser's time zone goes along, so the user's streaks count their
+ * own days from the first check-in.
+ */
 export function signUp(email: string, password: string, name: string) {
-  return postAuth("/api/auth/sign-up/email", { email, password, name });
+  return postAuth("/api/auth/sign-up/email", {
+    email,
+    password,
+    name,
+    timezone: browserTimeZone(),
+  });
+}
+
+/**
+ * Stores the browser's time zone on the user when it differs from the one
+ * on file: filled in for users who signed up before zones were stored, and
+ * updated after travel. Check-ins keep the dates they were saved on, so
+ * past streaks are not recalculated in the new zone.
+ */
+export async function syncTimeZone(user: z.infer<typeof userSchema>): Promise<void> {
+  const timezone = browserTimeZone();
+  if (!timezone || timezone === user.timezone) return;
+  const res = await fetch("/api/auth/update-user", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ timezone }),
+  });
+  if (!res.ok) throw new Error(await errorMessage(res));
 }
 
 /**

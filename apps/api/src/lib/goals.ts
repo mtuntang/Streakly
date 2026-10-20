@@ -59,8 +59,12 @@ async function loadGoalRow(userId: string, id: string): Promise<GoalRow | null> 
   });
 }
 
-/** Maps a Prisma goal row (with check-ins) to the wire contract. */
-export function toGoalDTO(goal: GoalRow): GoalDTO {
+/**
+ * Maps a Prisma goal row (with check-ins) to the wire contract. `today` is
+ * the user's civil day (zonedToday), so the stats say what is due and done
+ * for the user, not for the server's clock.
+ */
+export function toGoalDTO(goal: GoalRow, today: Date): GoalDTO {
   // The wire contract and streak math run on "YYYY-MM-DD" civil-day strings.
   const checkIns = goal.checkIns.map((c) => ({ date: fromDayDate(c.date) }));
   const schedule = normalizeSchedule(goal.schedule);
@@ -74,18 +78,18 @@ export function toGoalDTO(goal: GoalRow): GoalDTO {
     createdAt: goal.createdAt.toISOString(),
     updatedAt: goal.updatedAt.toISOString(),
     checkIns,
-    stats: computeStreaks(checkIns.map((c) => c.date), new Date(), schedule),
+    stats: computeStreaks(checkIns.map((c) => c.date), today, schedule),
   };
 }
 
 /** Loads all of one user's goals with computed streak stats. */
-export async function loadGoals(userId: string): Promise<GoalDTO[]> {
+export async function loadGoals(userId: string, today: Date): Promise<GoalDTO[]> {
   const goals = await db.goal.findMany({
     where: { userId },
     orderBy: [{ order: "asc" }, { createdAt: "asc" }],
     include: { checkIns: { select: { date: true } } },
   });
-  return goals.map(toGoalDTO);
+  return goals.map((goal) => toGoalDTO(goal, today));
 }
 
 /**
@@ -103,10 +107,14 @@ function assertFound(count: number): void {
  * Routes call this instead of loading every goal to validate one; a goal
  * owned by another user returns null, which the route maps to 404.
  */
-export async function loadGoal(userId: string, id: string): Promise<GoalDTO | null> {
+export async function loadGoal(
+  userId: string,
+  id: string,
+  today: Date,
+): Promise<GoalDTO | null> {
   assertGoalId(id);
   const goal = await loadGoalRow(userId, id);
-  return goal ? toGoalDTO(goal) : null;
+  return goal ? toGoalDTO(goal, today) : null;
 }
 
 /**
@@ -116,6 +124,7 @@ export async function loadGoal(userId: string, id: string): Promise<GoalDTO | nu
 export async function createGoal(
   userId: string,
   input: CreateGoalInput,
+  today: Date,
 ): Promise<GoalDTO> {
   const color = input.color ?? DEFAULT_COLOR;
   const icon = input.icon ?? DEFAULT_ICON;
@@ -142,7 +151,7 @@ export async function createGoal(
     },
     include: { checkIns: { select: { date: true } } },
   });
-  return toGoalDTO(goal);
+  return toGoalDTO(goal, today);
 }
 
 /**
