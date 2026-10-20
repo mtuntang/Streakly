@@ -6,7 +6,7 @@
 
 web
 
-An installable offline app (PWA) is planned, with a native app (Expo) later. Both will reuse the same API.
+Streakly is meant to be used on both phones and computers. On a phone, users install it from the browser to their home screen and open it like an app. Desktop users can use it in a browser tab or install it the same way. One responsive web app serves both, as an installable PWA. Installing and offline use are planned and not yet built. A native app (Expo) may come later and would reuse the same API.
 
 ## Users
 
@@ -16,20 +16,22 @@ Each person has their own account: one account per person, one email and passwor
 
 ## Product Purpose
 
-Streakly turns habits into streaks. You create a goal, check in on the days it is due, and the app keeps an honest count of your unbroken chain and your history. Success means the user comes back tomorrow: checking in is fast, and they can trust the streak they see.
+Streakly makes logging habits as simple as possible. Each habit is a goal card. Users check in from the card, put the cards in whatever order suits them, and see their streak history as a GitHub-style heatmap on each card. The app keeps an honest count of each unbroken chain.
+
+Success means logging takes almost no effort, so users come back every day: open the app, check in, get on with their day, and trust the streak they see.
 
 ## Positioning
 
 Streaks that follow how a habit is actually scheduled:
 
-- Three cadences: every day, specific weekdays, or X times per week. Each streak is counted in the unit the user chose, so weekly goals count weeks, never days.
+- Three cadences: every day, specific days of the week (for example Mon/Wed/Fri), or a weekly quota (for example 2 or 4 times a week, on any days). Each streak is counted in the unit the user chose, so quota goals count weeks, never days.
 - Rest days neither break nor grow a streak. A user can still check in on a rest day; it counts toward their history, not their chain.
 - "Today" is the user's own day, computed in their time zone, not the server's.
 - A broken streak is called broken. It is not presented as a fresh start.
 
 ## Operating Context
 
-- The daily loop: open the app, check in, leave. It usually takes seconds and often happens on a phone.
+- The daily loop: open the app, check in, leave. It usually takes a few seconds, on a phone (from the home screen) or on a computer.
 - A tab left open past midnight rolls over to the new day on its own.
 - Users who travel, or live far from the server, still get the correct "today".
 - Detail views (the full heatmap and the last 14 days) are for looking back, not part of the daily check-in.
@@ -58,6 +60,8 @@ Terminology: goal, check-in, streak, cadence ("Every day" / "Specific days" / "X
 ## Brand Commitments
 
 - The name is Streakly. The logo is the flame tile (`public/logo.svg`, `public/favicon.svg`).
+- Goal cards are the main interface, and the user can rearrange them.
+- Each goal's history is shown as a GitHub-style contribution heatmap: a grid of days, one week per column, with each day filled in or empty.
 - Taglines in use: "Stay consistent, one day at a time" and "Don't break the chain".
 - Voice: plain, honest, and encouraging, never hype.
   - Never show a number in a unit the user didn't choose.
@@ -71,11 +75,12 @@ Terminology: goal, check-in, streak, cadence ("Every day" / "Specific days" / "X
 
 ## Product Principles
 
-1. The numbers are honest. Streak math is calculated in one place, on the server, and the UI shows only states that calculation produced.
-2. The daily check-in is the product. It must stay a single, instant tap; everything else comes second.
-3. Respect the user's calendar: their time zone, their rest days, and the cadence they chose.
-4. Consistency matters more than intensity. A check-in is done or not done.
-5. Ship in small steps that work on their own, and don't build features before they are needed.
+1. Remove friction first. Logging a habit should be obvious without instructions and take as few taps as possible. Every screen, step, and setting has to justify the effort it adds. When in doubt, take something away.
+2. The numbers are honest. Streak math is calculated in one place, on the server, and the UI shows only states that calculation produced.
+3. The daily check-in is the product. Checking in from the card is a single tap with an instant response; everything else comes second.
+4. Respect the user's calendar: their time zone, their rest days, and the cadence they chose.
+5. Consistency matters more than intensity. A check-in is done or not done.
+6. Ship in small steps that work on their own, and don't build features before they are needed.
 
 ## Accessibility & Inclusion
 
