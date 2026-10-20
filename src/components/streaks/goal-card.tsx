@@ -242,8 +242,11 @@ export function GoalCard({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <Flame
+                  // A new key replays the flicker for each check-in in a row.
+                  key={rewards}
                   className={cn(
-                    "h-6 w-6 shrink-0",
+                    "card-flame h-6 w-6 shrink-0",
+                    rewards > 0 && "is-flickering",
                     goal.stats.current > 0 ? colorCfg.text : "text-muted-foreground/50",
                   )}
                 />

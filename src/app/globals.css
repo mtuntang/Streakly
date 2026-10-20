@@ -462,6 +462,54 @@
   animation-delay: calc(90ms + var(--i, 0) * 26ms);
 }
 
+/* The card's streak flame flickers on each check-in: it sways from its
+   base in swings that shrink and alternate direction, glowing in the
+   goal's color on the first leap. Each segment eases in and out, so the
+   wobble reads as fire rather than a bounce. */
+.card-flame.is-flickering {
+  transform-origin: 50% 90%;
+  animation: flame-flicker 760ms cubic-bezier(0.37, 0, 0.63, 1);
+}
+@keyframes flame-flicker {
+  0%,
+  100% {
+    transform: none;
+    /* Same filter list as the peaks, at zero size: blending from `none`
+       sends the shadow color through black on the way up. */
+    filter: drop-shadow(0 0 0 currentColor) brightness(1);
+  }
+  12% {
+    transform: scale(1.12, 1.26) skewX(-7deg);
+    filter: drop-shadow(0 0 4px currentColor) brightness(1.15);
+  }
+  26% {
+    transform: scale(0.92, 0.9) skewX(5deg);
+  }
+  40% {
+    transform: scale(1.07, 1.14) skewX(-3.5deg);
+    filter: drop-shadow(0 0 2.5px currentColor) brightness(1.08);
+  }
+  54% {
+    transform: scale(0.97, 0.95) skewX(2.5deg);
+  }
+  68% {
+    transform: scale(1.03, 1.06) skewX(-1.5deg);
+  }
+  84% {
+    transform: scale(0.99, 0.98) skewX(0.6deg);
+  }
+}
+/* Reduced motion keeps the acknowledgment as light, with no movement. */
+@keyframes flame-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 currentColor) brightness(1);
+  }
+  30% {
+    filter: drop-shadow(0 0 4px currentColor) brightness(1.15);
+  }
+}
+
 /* The card's History button rewinds its clock when hovered: looking back. */
 @keyframes history-rewind {
   from {
@@ -522,6 +570,9 @@
   .brand-mark.is-flaring :is(.brand-flame, .brand-flame-core, .brand-letter),
   .history-btn .history-clock {
     animation: none !important;
+  }
+  .card-flame.is-flickering {
+    animation: flame-glow 600ms ease-out !important;
   }
   .history-btn .history-arrow {
     transition: none;
