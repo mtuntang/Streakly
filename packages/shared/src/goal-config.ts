@@ -13,6 +13,13 @@ export interface ColorConfig {
   dot: string;
   gradient: string;
   cellOn: string;
+  /**
+   * Background plus text color for a filled control that carries a label,
+   * like a checked "Completed today" button. Mid-tone fills fail contrast
+   * with white text, so light mode uses the 700 shade with white text and
+   * dark mode uses the 400 shade with near-black text; both pass 4.5:1.
+   */
+  fill: string;
 }
 
 // Indigo and blue are left out on purpose, per the project's color guidelines.
@@ -28,6 +35,7 @@ export const GOAL_COLORS: ColorConfig[] = [
     dot: "bg-emerald-500",
     gradient: "from-emerald-500/20 to-emerald-500/0",
     cellOn: "bg-emerald-500",
+    fill: "bg-emerald-700 text-white dark:bg-emerald-400 dark:text-emerald-950",
   },
   {
     key: "rose",
@@ -40,6 +48,7 @@ export const GOAL_COLORS: ColorConfig[] = [
     dot: "bg-rose-500",
     gradient: "from-rose-500/20 to-rose-500/0",
     cellOn: "bg-rose-500",
+    fill: "bg-rose-700 text-white dark:bg-rose-400 dark:text-rose-950",
   },
   {
     key: "amber",
@@ -52,6 +61,7 @@ export const GOAL_COLORS: ColorConfig[] = [
     dot: "bg-amber-500",
     gradient: "from-amber-500/20 to-amber-500/0",
     cellOn: "bg-amber-500",
+    fill: "bg-amber-700 text-white dark:bg-amber-400 dark:text-amber-950",
   },
   {
     key: "orange",
@@ -64,6 +74,7 @@ export const GOAL_COLORS: ColorConfig[] = [
     dot: "bg-orange-500",
     gradient: "from-orange-500/20 to-orange-500/0",
     cellOn: "bg-orange-500",
+    fill: "bg-orange-700 text-white dark:bg-orange-400 dark:text-orange-950",
   },
   {
     key: "teal",
@@ -76,6 +87,7 @@ export const GOAL_COLORS: ColorConfig[] = [
     dot: "bg-teal-500",
     gradient: "from-teal-500/20 to-teal-500/0",
     cellOn: "bg-teal-500",
+    fill: "bg-teal-700 text-white dark:bg-teal-400 dark:text-teal-950",
   },
   {
     key: "violet",
@@ -88,6 +100,7 @@ export const GOAL_COLORS: ColorConfig[] = [
     dot: "bg-violet-500",
     gradient: "from-violet-500/20 to-violet-500/0",
     cellOn: "bg-violet-500",
+    fill: "bg-violet-700 text-white dark:bg-violet-400 dark:text-violet-950",
   },
   {
     key: "pink",
@@ -100,6 +113,7 @@ export const GOAL_COLORS: ColorConfig[] = [
     dot: "bg-pink-500",
     gradient: "from-pink-500/20 to-pink-500/0",
     cellOn: "bg-pink-500",
+    fill: "bg-pink-700 text-white dark:bg-pink-400 dark:text-pink-950",
   },
   {
     key: "lime",
@@ -112,6 +126,7 @@ export const GOAL_COLORS: ColorConfig[] = [
     dot: "bg-lime-500",
     gradient: "from-lime-500/20 to-lime-500/0",
     cellOn: "bg-lime-500",
+    fill: "bg-lime-700 text-white dark:bg-lime-400 dark:text-lime-950",
   },
 ];
 

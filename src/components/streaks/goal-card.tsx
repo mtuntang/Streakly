@@ -3,7 +3,16 @@
 import * as React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Flame, MoreHorizontal, Pencil, Trash2, Trophy, Check, GripHorizontal } from "lucide-react";
+import {
+  Check,
+  ChevronRight,
+  Flame,
+  GripVertical,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Trophy,
+} from "lucide-react";
 import {
   Card,
   CardContent,
@@ -91,15 +100,32 @@ export function GoalCard({
   const cardState = cardCheckinState(goal.schedule, goal.stats, today);
   const buttonStyle = toggleButtonStyle(doneToday);
   const isWeekly = goal.schedule?.type === "weekly";
+  const unitShort = isWeekly ? "w" : "d";
+  const unitLong = isWeekly ? "week" : "day";
+  const atRisk = cardState.kind === "checkin" && cardState.urgency === "quota-at-risk";
 
-  // Status message for daily/weekdays cards — honest states, never reuse empty-state copy.
-  const cardStatusMessage = () => {
+  // Status line under the streak: honest per-cadence states, never the
+  // empty-state copy.
+  const statusMessage = () => {
+    if (isWeekly) {
+      const week = goal.stats.week;
+      if (week?.met) return "Quota met this week";
+      const left = Math.max((week?.quota ?? 0) - (week?.done ?? 0), 0);
+      if (atRisk) {
+        // Days left in the week counting today (the week ends Saturday).
+        const daysLeft = 7 - today.getDay();
+        return `${left} to go · ${daysLeft === 1 ? "last day" : `${daysLeft} days left`}`;
+      }
+      return `${left} to go this week`;
+    }
     if (cardState.kind === "rest") return `Rest day — back ${cardState.nextDayShort}`;
     if (doneToday) return "Completed today";
     if (goal.stats.current > 0) {
-      return goal.stats.active ? "Streak alive — check in today!" : "Current streak";
+      return goal.stats.active ? "Streak alive — check in today" : "Current streak";
     }
-    if (cardState.brokenStreak) return "Streak broken — start again today";
+    if (cardState.kind === "checkin" && cardState.brokenStreak) {
+      return "Streak broken — start again today";
+    }
     return "No active streak yet";
   };
 
@@ -113,7 +139,7 @@ export function GoalCard({
           willChange: "transform",
         }}
         className={cn(
-          "group relative gap-0 overflow-hidden py-2 transition-shadow hover:shadow-md",
+          "group relative gap-0 overflow-hidden py-0 transition-shadow hover:shadow-md",
           "border-border/70",
           isDragging && "z-10 opacity-80 shadow-xl",
         )}
@@ -121,21 +147,7 @@ export function GoalCard({
         {/* color accent strip */}
         <div className={cn("absolute inset-x-0 top-0 h-1", colorCfg.bg)} />
 
-        {/* Drag handle bar at the top of the card */}
-        <div className="flex items-center justify-center border-b border-border/50 py-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-10 cursor-grab touch-none text-muted-foreground/60 hover:text-muted-foreground active:cursor-grabbing"
-            aria-label={`Drag to reorder ${goal.name}`}
-            {...attributes}
-            {...listeners}
-          >
-            <GripHorizontal className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <CardContent className="pt-4">
+        <CardContent className="px-5 pt-6 pb-5">
           {/* Header */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-3">
@@ -157,19 +169,29 @@ export function GoalCard({
                     {goal.description}
                   </p>
                 ) : null}
-                <Badge variant="outline" className="mt-1.5 w-fit text-[10px] font-medium">
+                <Badge variant="outline" className="mt-1.5 w-fit text-[11px] font-medium">
                   {cadenceLabel(goal.schedule)}
                 </Badge>
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="-mt-1.5 -mr-2 flex shrink-0 items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-10 sm:size-9 cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
+                aria-label={`Drag to reorder ${goal.name}`}
+                {...attributes}
+                {...listeners}
+              >
+                <GripVertical className="h-4 w-4" />
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground"
+                    className="size-10 sm:size-9 text-muted-foreground hover:text-foreground"
                     aria-label={`Actions for ${goal.name}`}
                   >
                     <MoreHorizontal className="h-4 w-4" />
@@ -192,72 +214,50 @@ export function GoalCard({
             </div>
           </div>
 
-          {/* Streak display — branches per cadence */}
-          {isWeekly ? (
-            <div className="mt-4 flex items-end justify-between gap-3">
-              <div>
-                <div className="flex items-baseline gap-2">
-                  <Flame
-                    className={cn(
-                      "h-7 w-7",
-                      goal.stats.current > 0 ? colorCfg.text : "text-muted-foreground/50",
-                    )}
-                  />
-                  <span className="text-4xl font-bold tabular-nums leading-none">
-                    {goal.stats.current}
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    week{goal.stats.current === 1 ? "" : "s"}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {goal.stats.week?.met
-                    ? "Quota met this week"
-                    : `${Math.max((goal.stats.week?.quota ?? 0) - (goal.stats.week?.done ?? 0), 0)} to go this week`}
-                </p>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <Badge variant="secondary" className="gap-1 font-medium">
-                  <Trophy className="h-3 w-3" />
-                  Best {goal.stats.longest}w
-                </Badge>
-                <span className="text-xs text-muted-foreground">
-                  {goal.stats.total} total
+          {/* Streak: the unit is the one the cadence counts in */}
+          <div className="mt-5 flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Flame
+                  className={cn(
+                    "h-6 w-6 shrink-0",
+                    goal.stats.current > 0 ? colorCfg.text : "text-muted-foreground/50",
+                  )}
+                />
+                <StreakNumber value={goal.stats.current} />
+                <span className="self-end pb-0.5 text-sm text-muted-foreground">
+                  {unitLong}
+                  {goal.stats.current === 1 ? "" : "s"}
                 </span>
               </div>
+              <p
+                className={cn(
+                  "mt-1.5 text-xs",
+                  atRisk ? cn("font-medium", colorCfg.text) : "text-muted-foreground",
+                )}
+              >
+                {statusMessage()}
+              </p>
             </div>
-          ) : (
-            <div className="mt-4 flex items-end justify-between gap-3">
-              <div>
-                <div className="flex items-baseline gap-2">
-                  <Flame
-                    className={cn(
-                      "h-7 w-7",
-                      goal.stats.current > 0 ? colorCfg.text : "text-muted-foreground/50",
-                    )}
-                  />
-                  <span className="text-4xl font-bold tabular-nums leading-none">
-                    {goal.stats.current}
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    day{goal.stats.current === 1 ? "" : "s"}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">{cardStatusMessage()}</p>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <Badge variant="secondary" className="gap-1 font-medium">
-                  <Trophy className="h-3 w-3" />
-                  Best {goal.stats.longest}d
-                </Badge>
-                <span className="text-xs text-muted-foreground">
-                  {goal.stats.total} total
+            <div className="shrink-0 space-y-0.5 text-right text-xs text-muted-foreground">
+              <p className="flex items-center justify-end gap-1">
+                <Trophy className="h-3 w-3" aria-hidden />
+                Best{" "}
+                <span className="font-medium tabular-nums text-foreground">
+                  {goal.stats.longest}
+                  {unitShort}
                 </span>
-              </div>
+              </p>
+              <p>
+                <span className="font-medium tabular-nums text-foreground">
+                  {goal.stats.total}
+                </span>{" "}
+                total
+              </p>
             </div>
-          )}
+          </div>
 
-          {/* Weekly: quota progress dots — one dot per required check-in */}
+          {/* Weekly: quota progress dots, one per required check-in */}
           {isWeekly ? (
             <WeekDots
               done={goal.stats.week?.done ?? 0}
@@ -267,63 +267,52 @@ export function GoalCard({
             />
           ) : null}
 
-          {/* Today toggle — on rest days: voluntary "did it anyway" action */}
-          {cardState.kind === "rest" ? (
-            <Button
-              onClick={() => onToggleToday(goal)}
-              variant={buttonStyle.variant}
-              aria-pressed={doneToday}
-              className={cn(
-                "mt-4 w-full",
-                buttonStyle.filled
-                  ? cn(colorCfg.bg, "text-white hover:opacity-90")
-                  : "border-dashed opacity-70 hover:opacity-100",
-              )}
-            >
-              {doneToday ? (
-                <>
-                  <Check className="mr-2 h-4 w-4" />
-                  Checked in on a rest day
-                </>
-              ) : (
-                `Do it anyway (Rest Day - back ${cardState.nextDayShort})`
-              )}
-            </Button>
-          ) : (
-            <Button
-              onClick={() => onToggleToday(goal)}
-              className={cn(
-                "mt-4 w-full",
-                buttonStyle.filled
-                  ? cn(colorCfg.bg, "text-white hover:opacity-90")
-                  : "border border-dashed border-border bg-transparent text-foreground hover:bg-accent",
-              )}
-              variant={buttonStyle.variant}
-              aria-pressed={doneToday}
-            >
-              {doneToday ? (
-                <>
-                  <Check className="mr-2 h-4 w-4" />
-                  Completed today
-                </>
-              ) : (
-                "Mark done today"
-              )}
-            </Button>
-          )}
+          {/* Today toggle; on rest days a voluntary check-in */}
+          <Button
+            onClick={() => onToggleToday(goal)}
+            variant={buttonStyle.variant}
+            aria-pressed={doneToday}
+            className={cn(
+              "mt-4 h-10 w-full",
+              buttonStyle.filled
+                ? cn(colorCfg.fill, "border-transparent hover:opacity-90")
+                : cn(
+                    "border-dashed bg-transparent hover:bg-accent dark:bg-transparent",
+                    cardState.kind === "rest" ? "text-muted-foreground" : "text-foreground",
+                  ),
+            )}
+          >
+            {doneToday ? (
+              <>
+                <Check className="h-4 w-4" />
+                {cardState.kind === "rest" ? "Checked in on a rest day" : "Completed today"}
+              </>
+            ) : cardState.kind === "rest" ? (
+              `Do it anyway (rest day — back ${cardState.nextDayShort})`
+            ) : (
+              "Mark done today"
+            )}
+          </Button>
 
-          {/* Mini heatmap */}
+          {/* Mini heatmap: opens the full history */}
           <button
+            type="button"
             onClick={() => onOpenDetail(goal)}
-            className="mt-4 w-full overflow-x-auto text-left"
+            className="group/history mt-4 block w-full rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
             aria-label={`View full history for ${goal.name}`}
           >
             <Heatmap
               dateKeys={goal.checkIns.map((c) => c.date)}
               color={goal.color}
-              weeks={14}
-              cellSize={11}
+              weeks={18}
+              fluid
               showMonths={false}
+              action={
+                <span className="inline-flex items-center gap-0.5 transition-colors group-hover/history:text-foreground group-focus-visible/history:text-foreground">
+                  History
+                  <ChevronRight className="h-3 w-3" aria-hidden />
+                </span>
+              }
             />
           </button>
         </CardContent>
@@ -360,6 +349,32 @@ export function GoalCard({
   );
 }
 
+/**
+ * Renders the current streak number. When the number changes after the
+ * first render (a check-in landed), it rolls in from below; on first render
+ * it is static, so a page load doesn't animate every card at once.
+ */
+function StreakNumber({ value }: { value: number }) {
+  const [shown, setShown] = React.useState(value);
+  const [changes, setChanges] = React.useState(0);
+  if (value !== shown) {
+    setShown(value);
+    setChanges(changes + 1);
+  }
+  return (
+    <span
+      key={changes}
+      className={cn(
+        "text-4xl font-semibold leading-none tracking-tight tabular-nums",
+        changes > 0 &&
+          "animate-in fade-in-0 slide-in-from-bottom-2 duration-300 ease-out motion-reduce:animate-none",
+      )}
+    >
+      {value}
+    </span>
+  );
+}
+
 /** Renders quota progress dots for a weekly goal: one dot per required check-in. */
 function WeekDots({
   done,
@@ -373,7 +388,11 @@ function WeekDots({
   met: boolean;
 }) {
   return (
-    <div className="mt-3 flex gap-1.5" aria-label={`${done} of ${quota} check-ins this week`}>
+    <div
+      className="mt-3 flex gap-1.5"
+      role="img"
+      aria-label={`${done} of ${quota} check-ins this week`}
+    >
       {Array.from({ length: quota }, (_, i) => (
         <span
           key={i}

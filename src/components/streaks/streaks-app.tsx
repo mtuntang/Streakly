@@ -18,7 +18,7 @@ import {
 import { Flame, LogOut, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { StatsBar } from "./stats-bar";
+import { TodaySummary } from "./today-summary";
 import { GoalCard } from "./goal-card";
 import { GoalFormDialog } from "./goal-form-dialog";
 import { GoalDetailSheet } from "./goal-detail-sheet";
@@ -27,6 +27,7 @@ import type { GoalDTO } from "@streakly/shared";
 import { useToast } from "@/hooks/use-toast";
 import { useGoals } from "@/hooks/use-goals";
 import { signOut } from "@/lib/session";
+import { BrandMark } from "@/components/brand-mark";
 
 /** Renders the signed-in app: stats, the sortable goal grid, and its dialogs. */
 export function StreaksApp() {
@@ -101,32 +102,20 @@ export function StreaksApp() {
     reorder(String(active.id), String(over.id));
   }
 
-  const doneTodayCount = goals.filter((g) => g.stats.doneToday).length;
-
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-          <div className="flex items-center gap-2.5">
-            <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 shadow-sm">
-              <Flame className="h-5 w-5 text-white" />
-            </div>
-            <div className="leading-tight">
-              <h1 className="text-base font-bold tracking-tight sm:text-lg">
-                Streakly
-              </h1>
-              <p className="hidden text-xs text-muted-foreground sm:block">
-                Stay consistent, one day at a time
-              </p>
-            </div>
-          </div>
+          <h1>
+            <BrandMark />
+          </h1>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-full"
+              className="size-10 rounded-full sm:size-9"
               onClick={refresh}
               aria-label="Refresh"
               disabled={refreshing}
@@ -139,13 +128,13 @@ export function StreaksApp() {
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-full"
+              className="size-10 rounded-full sm:size-9"
               onClick={handleSignOut}
               aria-label="Sign out"
             >
               <LogOut className="h-4 w-4" />
             </Button>
-            <Button onClick={handleCreate} size="sm" className="gap-1.5">
+            <Button onClick={handleCreate} className="ml-1 h-10 gap-1.5 sm:h-9">
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">New goal</span>
               <span className="sm:hidden">New</span>
@@ -156,17 +145,18 @@ export function StreaksApp() {
 
       {/* Main */}
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-        {/* Hero / greeting */}
-        <div className="mb-6 flex flex-col gap-1">
-          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
-            {greeting()}
-          </h2>
-          <p className="text-sm text-muted-foreground sm:text-base">
-            {loading
-              ? "Loading your streaks…"
-              : todayProgressMessage(doneTodayCount, goals.length)}
-          </p>
-        </div>
+        {loading || goals.length === 0 ? (
+          <div className="mb-6 flex flex-col gap-1">
+            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              {greeting()}
+            </h2>
+            <p className="text-sm text-muted-foreground sm:text-base">
+              {loading ? "Loading your streaks…" : "Let's build some momentum."}
+            </p>
+          </div>
+        ) : (
+          <TodaySummary goals={goals} greeting={greeting()} />
+        )}
 
         {loading ? (
           <LoadingState />
@@ -174,7 +164,6 @@ export function StreaksApp() {
           <EmptyState onCreate={handleCreate} />
         ) : (
           <>
-            <StatsBar goals={goals} />
 
             <DndContext
               sensors={sensors}
@@ -185,7 +174,7 @@ export function StreaksApp() {
                 items={goals.map((g) => g.id)}
                 strategy={rectSortingStrategy}
               >
-                <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {goals.map((goal) => (
                     <GoalCard
                       key={goal.id}
@@ -207,11 +196,8 @@ export function StreaksApp() {
       <footer className="mt-auto border-t border-border/70 bg-muted/20">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-4 text-xs text-muted-foreground sm:flex-row sm:px-6">
           <p className="flex items-center gap-1.5">
-            <Flame className="h-3.5 w-3.5 text-orange-500" />
+            <Flame className="h-3.5 w-3.5 text-brand" aria-hidden />
             Streakly — don&apos;t break the chain
-          </p>
-          <p>
-            {goals.length} {goals.length === 1 ? "goal" : "goals"} tracked
           </p>
         </div>
       </footer>
@@ -242,25 +228,11 @@ function greeting() {
   return "Good evening";
 }
 
-/** Returns the line under the greeting that sums up today's progress. */
-function todayProgressMessage(done: number, total: number): string {
-  if (total === 0) return "Let's build some momentum.";
-  if (done === total) return "All goals done today. You're on fire! 🔥";
-  return `${done}/${total} goals completed today — keep the chain alive.`;
-}
-
 /** Renders placeholder cards while goals load. */
 function LoadingState() {
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-28 animate-pulse rounded-xl bg-muted/60"
-          />
-        ))}
-      </div>
+      <div className="h-24 animate-pulse rounded-xl bg-muted/60" />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 3 }).map((_, i) => (
           <div

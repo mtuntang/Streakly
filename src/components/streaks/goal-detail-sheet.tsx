@@ -7,6 +7,8 @@ import {
   Target,
   Pencil,
   X as XIcon,
+  Check,
+  Minus,
 } from "lucide-react";
 import {
   Sheet,
@@ -46,7 +48,8 @@ export function GoalDetailSheet({
   const colorCfg = getColor(goal.color);
 
   const doneSet = new Set(goal.checkIns.map((c) => c.date));
-  const recent = lastNDays(14).reverse();
+  // Oldest first, left to right, the same direction as the heatmap.
+  const recent = lastNDays(14);
 
   const isWeekly = goal.stats.unit === "week";
   const unitSuffix = isWeekly ? "w" : "d";
@@ -187,16 +190,18 @@ export function GoalDetailSheet({
                   >
                     <span
                       className={cn(
-                        "flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold",
-                        done
-                          ? cn(colorCfg.bg, "text-white")
-                          : "bg-muted text-muted-foreground",
+                        "flex h-6 w-6 items-center justify-center rounded-full",
+                        done ? colorCfg.fill : "bg-muted text-muted-foreground",
                       )}
+                      aria-hidden
                     >
-                      {done ? "✓" : "·"}
+                      {done ? <Check className="h-3.5 w-3.5" /> : <Minus className="h-3 w-3" />}
                     </span>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       {prettyDate(key).split(",")[0]}
+                    </span>
+                    <span className="sr-only">
+                      {prettyDate(key)}: {done ? "done" : "not done"}
                     </span>
                   </div>
                 );

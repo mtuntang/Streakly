@@ -15,10 +15,10 @@ export function ThemeToggle() {
 
   return (
     <Button
-      variant="outline"
+      variant="ghost"
       size="icon"
       aria-label="Toggle theme"
-      className="rounded-full"
+      className="size-10 rounded-full sm:size-9"
       onClick={() => setTheme(isDark ? "light" : "dark")}
     >
       {mounted && isDark ? (
