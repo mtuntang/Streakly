@@ -1,15 +1,6 @@
 "use client";
 
-import {
-  Flame,
-  Trophy,
-  CalendarCheck,
-  Target,
-  Pencil,
-  X as XIcon,
-  Check,
-  Minus,
-} from "lucide-react";
+import { CircleAlert, Flame, Pencil, X as XIcon } from "lucide-react";
 import {
   Sheet,
   SheetClose,
@@ -19,15 +10,22 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   cadenceLabel,
+  cardCheckinState,
+  fromKey,
   getColor,
+  isScheduledDay,
   lastNDays,
   prettyDate,
+  todayKey,
+  weekdayShort,
   type GoalDTO,
 } from "@streakly/shared";
 import { GoalIcon } from "./goal-icon";
 import { Heatmap } from "./heatmap";
+import { goalStatus, type StatusTone } from "./goal-status";
 import { cn } from "@/lib/utils";
 
 interface GoalDetailSheetProps {
@@ -37,7 +35,18 @@ interface GoalDetailSheetProps {
   onEdit: (goal: GoalDTO) => void;
 }
 
-/** Renders the side sheet with a goal's full stats and heatmap. */
+const TONE_TEXT: Record<StatusTone, string> = {
+  done: "text-muted-foreground",
+  due: "text-muted-foreground",
+  rest: "text-muted-foreground",
+  risk: "font-medium text-amber-800 dark:text-amber-300",
+};
+
+/**
+ * Renders the side sheet with a goal's history. It reads top to bottom
+ * from now to long ago: the current streak and what today needs, then
+ * the last 14 days, then the half-year heatmap.
+ */
 export function GoalDetailSheet({
   goal,
   open,
@@ -46,50 +55,32 @@ export function GoalDetailSheet({
 }: GoalDetailSheetProps) {
   if (!goal) return null;
   const colorCfg = getColor(goal.color);
-
-  const doneSet = new Set(goal.checkIns.map((c) => c.date));
-  // Oldest first, left to right, the same direction as the heatmap.
-  const recent = lastNDays(14);
+  const now = new Date();
+  const status = goalStatus(goal, cardCheckinState(goal.schedule, goal.stats, now), now);
 
   const isWeekly = goal.stats.unit === "week";
-  const unitSuffix = isWeekly ? "w" : "d";
-  const stats = isWeekly
-    ? [
-        {
-          label: "Current streak",
-          value: `${goal.stats.current}${unitSuffix}`,
-          icon: Flame,
-          highlight: goal.stats.current > 0,
-        },
-        { label: "Longest streak", value: `${goal.stats.longest}${unitSuffix}`, icon: Trophy },
-        {
-          label: "This week",
-          value: `${goal.stats.week?.done ?? 0}/${goal.stats.week?.quota ?? 0}`,
-          icon: CalendarCheck,
-        },
-        { label: "4-week rate", value: `${goal.stats.rate30}%`, icon: Target },
-      ]
-    : [
-        {
-          label: "Current streak",
-          value: `${goal.stats.current}${unitSuffix}`,
-          icon: Flame,
-          highlight: goal.stats.current > 0,
-        },
-        { label: "Longest streak", value: `${goal.stats.longest}${unitSuffix}`, icon: Trophy },
-        { label: "Total check-ins", value: goal.stats.total, icon: CalendarCheck },
-        { label: "30-day rate", value: `${goal.stats.rate30}%`, icon: Target },
-      ];
+  const unitShort = isWeekly ? "w" : "d";
+  const unitLong = isWeekly ? "week" : "day";
+
+  // The all-time numbers beside the current streak. Weekly goals swap the
+  // total for this week's quota, which is what their card counts in.
+  const allTime = [
+    { label: "Best", value: `${goal.stats.longest}${unitShort}` },
+    isWeekly
+      ? { label: "This week", value: `${goal.stats.week?.done ?? 0}/${goal.stats.week?.quota ?? 0}` }
+      : { label: "Check-ins", value: String(goal.stats.total) },
+    { label: isWeekly ? "4-week rate" : "30-day rate", value: `${goal.stats.rate30}%` },
+  ];
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         hideClose
-        className="w-full overflow-y-auto px-5 pb-8 sm:max-w-2xl sm:px-7"
+        className="w-full gap-0 overflow-y-auto px-5 pb-8 sm:max-w-xl sm:px-7"
       >
-        <SheetHeader className="border-b border-border/60 pt-5 pb-4">
-          <div className="flex items-start justify-between gap-3 pr-1">
-            <div className="flex items-start gap-3">
+        <SheetHeader className="border-b border-border/60 px-0 pt-5 pb-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-3">
               <div
                 className={cn(
                   "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl",
@@ -99,16 +90,11 @@ export function GoalDetailSheet({
               >
                 <GoalIcon name={goal.icon} className="h-6 w-6" />
               </div>
-              <div>
-                <SheetTitle className="text-xl">{goal.name}</SheetTitle>
-                <p className="text-xs text-muted-foreground">
+              <div className="min-w-0">
+                <SheetTitle className="text-xl leading-tight">{goal.name}</SheetTitle>
+                <Badge variant="outline" className="mt-1.5 w-fit text-[11px] font-medium">
                   {cadenceLabel(goal.schedule)}
-                </p>
-                {goal.description ? (
-                  <SheetDescription className="mt-1">
-                    {goal.description}
-                  </SheetDescription>
-                ) : null}
+                </Badge>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -127,89 +113,198 @@ export function GoalDetailSheet({
               </SheetClose>
             </div>
           </div>
+          {goal.description ? (
+            <SheetDescription className="mt-3 max-w-prose">{goal.description}</SheetDescription>
+          ) : (
+            <SheetDescription className="sr-only">History for {goal.name}</SheetDescription>
+          )}
         </SheetHeader>
 
-        <div className="mt-6 space-y-7">
-          {/* Stat grid */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {stats.map((s) => (
-              <div
-                key={s.label}
+        {/* Now: the streak and what today needs, then the all-time numbers. */}
+        <section aria-label="Current streak" className="mt-6 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2">
+              <Flame
                 className={cn(
-                  "min-w-0 rounded-xl border px-4 pb-3.5 pt-4 shadow-sm transition-colors",
-                  s.highlight
-                    ? cn(colorCfg.border, colorCfg.bgSoft)
-                    : "border-border bg-muted/30",
+                  "h-7 w-7 shrink-0",
+                  goal.stats.current > 0 ? colorCfg.text : "text-muted-foreground/50",
                 )}
-              >
-                <s.icon
-                  className={cn(
-                    "h-4 w-4",
-                    s.highlight ? colorCfg.text : "text-muted-foreground",
-                  )}
-                />
-                <div className="mt-2 text-2xl font-bold tabular-nums">
-                  {s.value}
-                </div>
-                <div className="truncate text-xs text-muted-foreground">
-                  {s.label}
-                </div>
+                aria-hidden
+              />
+              <span className="font-display text-5xl font-semibold leading-none tracking-tight tabular-nums">
+                {goal.stats.current}
+              </span>
+              <span className="self-end pb-1 text-base text-muted-foreground">
+                {unitLong}
+                {goal.stats.current === 1 ? "" : "s"}
+              </span>
+            </p>
+            <p className={cn("mt-2 flex items-center gap-1 text-sm", TONE_TEXT[status.tone])}>
+              {status.tone === "risk" ? (
+                <CircleAlert className="h-4 w-4 shrink-0" aria-hidden />
+              ) : null}
+              {status.text}
+            </p>
+          </div>
+          <dl className="flex gap-x-7">
+            {allTime.map((item) => (
+              <div key={item.label}>
+                <dt className="text-xs text-muted-foreground">{item.label}</dt>
+                <dd className="mt-0.5 font-display text-lg font-semibold tabular-nums">
+                  {item.value}
+                </dd>
               </div>
             ))}
-          </div>
+          </dl>
+        </section>
 
-          {/* Full heatmap */}
-          <div>
-            <h4 className="mb-2 text-sm font-medium">Activity</h4>
-            <div className="overflow-x-auto rounded-xl border border-border/70 p-4">
-              <Heatmap
-                dateKeys={goal.checkIns.map((c) => c.date)}
-                color={goal.color}
-                weeks={26}
-                cellSize={13}
-                showMonths
-              />
-            </div>
-          </div>
+        <RecentDays goal={goal} />
 
-          {/* Recent days */}
-          <div>
-            <h4 className="mb-2 text-sm font-medium">Last 14 days</h4>
-            <div className="grid grid-cols-7 gap-1.5">
-              {recent.map((key) => {
-                const done = doneSet.has(key);
-                return (
-                  <div
-                    key={key}
-                    className={cn(
-                      "flex flex-col items-center gap-1 rounded-lg border p-2 text-center",
-                      done
-                        ? cn(colorCfg.border, colorCfg.bgSoft)
-                        : "border-border bg-muted/30",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "flex h-6 w-6 items-center justify-center rounded-full",
-                        done ? colorCfg.fill : "bg-muted text-muted-foreground",
-                      )}
-                      aria-hidden
-                    >
-                      {done ? <Check className="h-3.5 w-3.5" /> : <Minus className="h-3 w-3" />}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {prettyDate(key).split(",")[0]}
-                    </span>
-                    <span className="sr-only">
-                      {prettyDate(key)}: {done ? "done" : "not done"}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+        {/* Long-term: the half-year heatmap. */}
+        <section aria-labelledby="activity-heading" className="mt-9">
+          <h3 id="activity-heading" className="text-sm font-semibold">
+            Last 6 months
+          </h3>
+          {/* On narrow screens the grid scrolls sideways; it opens on the
+              newest weeks, which sit at the right end. */}
+          <div
+            ref={(el) => {
+              if (el) el.scrollLeft = el.scrollWidth;
+            }}
+            className="mt-3 overflow-x-auto rounded-xl bg-muted/50 p-4"
+          >
+            <Heatmap
+              dateKeys={goal.checkIns.map((c) => c.date)}
+              color={goal.color}
+              weeks={26}
+              cellSize={13}
+              showMonths
+            />
           </div>
-        </div>
+        </section>
       </SheetContent>
     </Sheet>
+  );
+}
+
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Returns a compact date range, e.g. "Oct 7 – 13" or "Sep 28 – Oct 4". */
+function rangeLabel(fromKeyStr: string, toKeyStr: string): string {
+  const a = fromKey(fromKeyStr);
+  const b = fromKey(toKeyStr);
+  const start = `${MONTH_SHORT[a.getMonth()]} ${a.getDate()}`;
+  return a.getMonth() === b.getMonth()
+    ? `${start} – ${b.getDate()}`
+    : `${start} – ${MONTH_SHORT[b.getMonth()]} ${b.getDate()}`;
+}
+
+/**
+ * Renders the last 14 days, oldest first like the heatmap, as two rows of
+ * seven, each headed by its date range so every day reads as an exact
+ * date: weekday above, day of the month in the circle. Each day says done, missed, or rest (a day the cadence
+ * doesn't schedule), so a gap on a rest day never reads as a miss.
+ */
+function RecentDays({ goal }: { goal: GoalDTO }) {
+  const colorCfg = getColor(goal.color);
+  const doneSet = new Set(goal.checkIns.map((c) => c.date));
+  const today = todayKey();
+  const days = lastNDays(14).map((key) => {
+    const weekday = fromKey(key).getDay();
+    const done = doneSet.has(key);
+    const scheduled = isScheduledDay(goal.schedule, weekday);
+    return { key, weekday, done, rest: !scheduled && !done, isToday: key === today };
+  });
+
+  const doneCount = days.filter((d) => d.done).length;
+  const scheduledCount = days.filter((d) => isScheduledDay(goal.schedule, d.weekday)).length;
+  // Weekly goals have no missed days, only a count; the others compare
+  // against the days their cadence asked for.
+  const summary =
+    goal.schedule?.type === "weekly"
+      ? `${doneCount} check-in${doneCount === 1 ? "" : "s"}`
+      : scheduledCount === 14
+        ? `${doneCount} of 14 days`
+        : `${days.filter((d) => d.done && isScheduledDay(goal.schedule, d.weekday)).length} of ${scheduledCount} scheduled days`;
+
+  return (
+    <section aria-labelledby="recent-heading" className="mt-9">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 id="recent-heading" className="text-sm font-semibold">
+          Last 14 days
+        </h3>
+        <p className="text-sm text-muted-foreground tabular-nums">{summary}</p>
+      </div>
+      <div className="mt-3 space-y-4">
+        {[days.slice(0, 7), days.slice(7)].map((week) => (
+          <div key={week[0].key}>
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+              {rangeLabel(week[0].key, week[week.length - 1].key)}
+            </p>
+            <ol className="grid grid-cols-7 gap-1">
+              {week.map((d) => (
+                <li
+                  key={d.key}
+                  title={prettyDate(d.key)}
+                  className={cn(
+                    "flex flex-col items-center gap-1 rounded-lg py-1.5",
+                    d.isToday && "bg-muted/70",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "text-[11px] leading-none",
+                      d.isToday ? "font-semibold text-foreground" : "text-muted-foreground",
+                    )}
+                    aria-hidden
+                  >
+                    {weekdayShort(d.weekday)}
+                  </span>
+                  <span
+                    className={cn(
+                      "flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold tabular-nums",
+                      d.done
+                        ? colorCfg.fill
+                        : d.rest
+                          ? "border border-dashed border-foreground/30 font-medium text-muted-foreground"
+                          : "font-medium text-muted-foreground ring-[1.5px] ring-inset ring-foreground/25",
+                    )}
+                    aria-hidden
+                  >
+                    {fromKey(d.key).getDate()}
+                  </span>
+                  <span
+                    className={cn(
+                      "h-3 text-[11px] leading-3",
+                      d.isToday ? "font-semibold text-foreground" : "text-transparent",
+                    )}
+                    aria-hidden
+                  >
+                    {d.isToday ? "Today" : ""}
+                  </span>
+                  <span className="sr-only">
+                    {prettyDate(d.key)}
+                    {d.isToday ? " (today)" : ""}: {d.done ? "done" : d.rest ? "rest day" : "not done"}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-hidden>
+        <span className="inline-flex items-center gap-1.5">
+          <span className={cn("h-2.5 w-2.5 rounded-full", colorCfg.cellOn)} /> Done
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full ring-[1.5px] ring-inset ring-foreground/25" /> Not done
+        </span>
+        {goal.schedule?.type === "weekdays" ? (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full border border-dashed border-foreground/40" /> Rest day
+          </span>
+        ) : null}
+      </p>
+    </section>
   );
 }
