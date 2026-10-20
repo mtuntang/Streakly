@@ -282,6 +282,30 @@ was skipped without any error.
 After changing a security setting, test the real behavior (send the
 requests, watch for the block), not just whether the code compiles.
 
+### 20. "Today" means the user's day, not the server's (PR #60)
+
+**Problem:** the server decided what "today" was from its own clock. On a
+server running in UTC, a user in a time zone where it was already tomorrow
+would check in for their own date. The streak math saw that as a
+"future" check-in and ignored it, so the button showed "not done" right
+after the click.
+
+**Decision:** the browser sends its time zone (an IANA name such as
+`America/Los_Angeles`) when the account is created, and updates it on later
+visits if it has changed. The server works out "today" in that zone, both
+for streak stats and for a check-in sent without a date
+(`todayKeyIn` / `zonedToday` in the shared package).
+
+- **Only named zones are accepted.** A fixed offset like `+05:00` has no
+  daylight-saving rules, so the day would shift by an hour twice a year. A
+  bad zone gets a 400 response.
+- **With no zone stored, the server's day is used,** which is what the app
+  did before. Users who signed up earlier keep working until their next
+  visit stores their zone.
+
+**Gotcha:** tests that change the user (`update-user`) must send an
+`Origin` header. Without one, Better Auth rejects the request with a 403.
+
 ---
 
 ## Things we chose NOT to do (for now)
@@ -306,9 +330,9 @@ Postgres 16, started with `docker compose up -d` (port 5432). Demo data:
   goals). `check_ins` belong to a goal and have no `userId` of their own:
   ownership goes user → goal → check-in. One check-in per goal per day (a
   unique rule), which also makes a double-click harmless.
-- **Time zone** is stored once, on the user (the column exists; filling it in
-  at sign-up is the next task). It is never copied onto goals, so there is
-  only one place to change it.
+- **Time zone** is stored once, on the user (sent by the browser; see
+  decision 20). It is never copied onto goals, so there is only one place
+  to change it.
 - **Dates:** a check-in's date is a plain calendar date (`date` column). The
   server converts it to and from `"YYYY-MM-DD"` text.
 
@@ -321,8 +345,9 @@ Postgres 16, started with `docker compose up -d` (port 5432). Demo data:
 2. Move from SQLite to Postgres. **DONE** (PR #17).
 3. Accounts and login, with each user seeing only their own goals.
    **DONE** (PRs #18, #20, #22, #23; fixes in #26).
-   **NEXT:** save the user's time zone at sign-up. The real work is testing
-   the daylight-saving switches (the spring-forward and fall-back days).
+   Each user's "today" follows their own time zone. **DONE** (PR #60).
+   **NEXT:** clean up how the website loads and changes goals (one
+   `useGoals()` hook).
 4. Payments with Stripe (after launch).
 5. Installable app that works offline (PWA). Changes made offline are stored
    in the browser and sent when back online. This is when the browser starts
