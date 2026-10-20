@@ -249,6 +249,29 @@ describe("goals api", () => {
     expect(bobGoal?.order).toBe(0);
   });
 
+  it("reorder of only foreign or missing ids is 404", async () => {
+    const alice = createTestApi(app, await cookieFor(USERS.alice));
+    const bob = createTestApi(app, await cookieFor(USERS.bob));
+    const b = await (await bob.goals.create({ name: "B-two" })).json();
+
+    expect((await alice.goals.reorder([b.id])).status).toBe(404);
+    expect((await alice.goals.reorder([crypto.randomUUID()])).status).toBe(404);
+  });
+
+  it("check-ins on a foreign or missing goal are 404", async () => {
+    const alice = createTestApi(app, await cookieFor(USERS.alice));
+    const bob = createTestApi(app, await cookieFor(USERS.bob));
+    const b = await (await bob.goals.create({ name: "B-three" })).json();
+
+    for (const id of [b.id, crypto.randomUUID()]) {
+      expect((await alice.goals.toggle(id)).status).toBe(404);
+      expect((await alice.goals.uncheck(id)).status).toBe(404);
+    }
+    // Bob's goal gained no check-in from Alice's attempts.
+    const after = await (await bob.goals.get(b.id)).json();
+    expect(after.checkIns).toEqual([]);
+  });
+
   // ── "Today" follows the user's time zone ──────────────────────────────
   // Kiritimati (UTC+14) and Pago Pago (UTC-11) are 25 hours apart, so their
   // civil days always differ, whatever the server's clock or zone says.

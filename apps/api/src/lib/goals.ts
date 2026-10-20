@@ -192,11 +192,14 @@ export async function deleteGoal(userId: string, id: string): Promise<void> {
   assertFound(count);
 }
 
-/** Sets each goal's order to its index in `ids`, in one transaction. */
+/**
+ * Sets each goal's order to its index in `ids`, in one transaction.
+ * Ids the user does not own match nothing and are skipped; a list where
+ * none matched is a 404, like any other write to a missing goal.
+ */
 export async function reorderGoals(userId: string, ids: string[]): Promise<void> {
   ids.forEach(assertGoalId);
-  // Scoped per-goal updateMany: an id owned by someone else leaves count 0.
-  await db.$transaction(
+  const results = await db.$transaction(
     ids.map((id, index) =>
       db.goal.updateMany({
         where: { id, userId },
@@ -204,18 +207,22 @@ export async function reorderGoals(userId: string, ids: string[]): Promise<void>
       }),
     ),
   );
+  assertFound(results.reduce((sum, { count }) => sum + count, 0));
 }
 
 /**
- * Loads the user's goal, or throws 404 when it is missing or foreign.
+ * Throws 404 unless the user owns goal `id`.
  * Every check-in change passes through this check, which is why check-in
- * rows need no userId of their own: ownership flows goal → check-in.
+ * rows need no userId of their own: ownership flows goal → check-in. It
+ * reads only the id: the caller loads the full goal for its response.
  */
-async function requireOwnedGoal(userId: string, id: string): Promise<GoalRow> {
+async function requireOwnedGoal(userId: string, id: string): Promise<void> {
   assertGoalId(id);
-  const goal = await loadGoalRow(userId, id);
+  const goal = await db.goal.findFirst({
+    where: { id, userId },
+    select: { id: true },
+  });
   if (!goal) throw notFound();
-  return goal;
 }
 
 /**
