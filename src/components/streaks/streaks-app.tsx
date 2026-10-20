@@ -31,6 +31,17 @@ import { useGoals } from "@/hooks/use-goals";
 import { signOut } from "@/lib/session";
 import { BrandMark } from "@/components/brand-mark";
 
+// Drag sensor options live outside the component: dnd-kit rebuilds its
+// context whenever an options object is new, and that re-renders every
+// card on every render of this page.
+// The whole card drags. A mouse starts after 5px of movement, so a click on
+// the card's buttons is still a click; a finger starts after a short press,
+// so a swipe over the cards still scrolls the page.
+const MOUSE_DRAG = { activationConstraint: { distance: 5 } };
+const TOUCH_DRAG = { activationConstraint: { delay: 220, tolerance: 8 } };
+// Space picks up the focused drag handle, arrows move it, Space drops.
+const KEYBOARD_DRAG = { coordinateGetter: sortableKeyboardCoordinates };
+
 /** Renders the signed-in app: stats, the sortable goal grid, and its dialogs. */
 export function StreaksApp() {
   const { toast } = useToast();
@@ -59,21 +70,23 @@ export function StreaksApp() {
     [goals, detailId],
   );
 
+  // The sortable ids change only when the order or the set of goals does.
+  // A new array on every render would reach every card through dnd-kit's
+  // context and re-render them all on each check-in.
+  const idOrder = goals.map((g) => g.id).join(",");
+  const sortableIds = React.useMemo(() => (idOrder ? idOrder.split(",") : []), [idOrder]);
+
   const sensors = useSensors(
-    // The whole card drags. A mouse starts after 5px of movement, so a
-    // click on the card's buttons is still a click; a finger starts after a
-    // short press, so a swipe over the cards still scrolls the page.
-    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
-    // Space picks up the focused drag handle, arrows move it, Space drops.
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(MouseSensor, MOUSE_DRAG),
+    useSensor(TouchSensor, TOUCH_DRAG),
+    useSensor(KeyboardSensor, KEYBOARD_DRAG),
   );
 
-  function openForm(goal: GoalDTO | null) {
+  const openForm = React.useCallback((goal: GoalDTO | null) => {
     setEditingGoal(goal);
     setFormKey((k) => k + 1);
     setFormOpen(true);
-  }
+  }, []);
 
   function handleCreate() {
     openForm(null);
@@ -90,15 +103,20 @@ export function StreaksApp() {
     }
   }
 
-  function handleEdit(goal: GoalDTO) {
-    openForm(goal);
-    setDetailOpen(false);
-  }
+  // The card handlers keep their identity across renders, so memoized cards
+  // skip re-rendering when another goal changes.
+  const handleEdit = React.useCallback(
+    (goal: GoalDTO) => {
+      openForm(goal);
+      setDetailOpen(false);
+    },
+    [openForm],
+  );
 
-  function handleOpenDetail(goal: GoalDTO) {
+  const handleOpenDetail = React.useCallback((goal: GoalDTO) => {
     setDetailId(goal.id);
     setDetailOpen(true);
-  }
+  }, []);
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -156,32 +174,29 @@ export function StreaksApp() {
         ) : goals.length === 0 ? (
           <EmptyState onCreate={handleCreate} />
         ) : (
-          <>
-
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={sortableIds}
+              strategy={rectSortingStrategy}
             >
-              <SortableContext
-                items={goals.map((g) => g.id)}
-                strategy={rectSortingStrategy}
-              >
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {goals.map((goal) => (
-                    <GoalCard
-                      key={goal.id}
-                      goal={goal}
-                      onToggleToday={toggleToday}
-                      onEdit={handleEdit}
-                      onDelete={deleteGoal}
-                      onOpenDetail={handleOpenDetail}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-          </>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {goals.map((goal) => (
+                  <GoalCard
+                    key={goal.id}
+                    goal={goal}
+                    onToggleToday={toggleToday}
+                    onEdit={handleEdit}
+                    onDelete={deleteGoal}
+                    onOpenDetail={handleOpenDetail}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </main>
 

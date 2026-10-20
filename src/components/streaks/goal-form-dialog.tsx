@@ -41,8 +41,11 @@ interface GoalFormDialogProps {
   onSave: (id: string | null, input: CreateGoalInput) => Promise<GoalDTO>;
 }
 
-/** Renders the dialog that creates a goal, or edits one when `goal` is set. */
-export function GoalFormDialog({
+/**
+ * Renders the dialog that creates a goal, or edits one when `goal` is set.
+ * Memoized, so a closed dialog does not re-render on every list change.
+ */
+export const GoalFormDialog = React.memo(function GoalFormDialog({
   open,
   onOpenChange,
   goal,
@@ -303,4 +306,4 @@ export function GoalFormDialog({
       </DialogContent>
     </Dialog>
   );
-}
+});

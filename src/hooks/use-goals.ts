@@ -60,6 +60,8 @@ function jsonBody(method: string, body: unknown): RequestInit {
  * midnight, and every change to it (check-in, reorder, save, delete).
  * Components get the list plus one function per action and never call the
  * api themselves, so optimistic updates and their undo live in one place.
+ * The action functions keep their identity across renders, so memoized
+ * goal cards skip re-rendering when only another goal changed.
  */
 export function useGoals() {
   const { toast } = useToast();
@@ -156,7 +158,7 @@ export function useGoals() {
    * flips at once; the server's reply brings the recomputed streaks, and a
    * failure undoes only this click.
    */
-  async function toggleToday(goal: GoalDTO) {
+  const toggleToday = React.useCallback(async (goal: GoalDTO) => {
     // The endpoint is a toggle, so a second click while the first request is
     // in flight would undo it. Ignore clicks until the goal's request settles.
     if (togglesInFlight.current.has(goal.id)) return;
@@ -183,14 +185,14 @@ export function useGoals() {
     } finally {
       togglesInFlight.current.delete(goal.id);
     }
-  }
+  }, [toast]);
 
   /**
    * Moves goal `activeId` to the position of `overId` and saves the order.
    * On success the server's list replaces the local one; on failure the old
    * order comes back, keeping any goal data that changed meanwhile.
    */
-  async function reorder(activeId: string, overId: string) {
+  const reorder = React.useCallback(async (activeId: string, overId: string) => {
     const before = goalsRef.current;
     const next = moveGoal(before, activeId, overId);
     if (!next) return;
@@ -212,14 +214,14 @@ export function useGoals() {
         variant: "destructive",
       });
     }
-  }
+  }, [toast]);
 
   /**
    * Creates a goal, or updates goal `id` when it is set, and returns the
    * saved goal. Throws with the api's message on failure, so the form can
    * show it and stay open.
    */
-  async function saveGoal(id: string | null, input: CreateGoalInput) {
+  const saveGoal = React.useCallback(async (id: string | null, input: CreateGoalInput) => {
     const saved = await requestJson(
       id ? `/api/goals/${id}` : "/api/goals",
       GoalDTOSchema,
@@ -227,13 +229,13 @@ export function useGoals() {
     );
     setGoals((prev) => upsertGoal(prev, saved));
     return saved;
-  }
+  }, []);
 
   /** Deletes a goal. Throws on failure, so the caller can keep its dialog open. */
-  async function deleteGoal(id: string) {
+  const deleteGoal = React.useCallback(async (id: string) => {
     await requestJson(`/api/goals/${id}`, OkSchema, { method: "DELETE" });
     setGoals((prev) => removeGoal(prev, id));
-  }
+  }, []);
 
   return {
     goals,

@@ -49,7 +49,9 @@ import {
 import { GoalIcon } from "./goal-icon";
 import { Heatmap } from "./heatmap";
 import { cn } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
+import { plural } from "@/lib/plural";
+import { toast } from "@/hooks/use-toast";
+import { useChangeCount } from "@/hooks/use-change-count";
 import { goalStatus, type StatusTone } from "./goal-status";
 import { CHECKIN_EVENT } from "@/components/brand-mark";
 
@@ -70,8 +72,12 @@ interface GoalCardProps {
   onOpenDetail: (goal: GoalDTO) => void;
 }
 
-/** Renders one goal: its streak, check-in button, and edit/delete menu. */
-export function GoalCard({
+/**
+ * Renders one goal: its streak, check-in button, and edit/delete menu.
+ * Memoized: the list keeps unchanged goals as the same objects and the
+ * handlers keep their identity, so a check-in re-renders only its own card.
+ */
+export const GoalCard = React.memo(function GoalCard({
   goal,
   onToggleToday,
   onEdit,
@@ -79,7 +85,6 @@ export function GoalCard({
   onOpenDetail,
 }: GoalCardProps) {
   const colorCfg = getColor(goal.color);
-  const { toast } = useToast();
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
 
@@ -132,16 +137,13 @@ export function GoalCard({
   const unitShort = isWeekly ? "w" : "d";
   const unitLong = isWeekly ? "week" : "day";
   const status = goalStatus(goal, cardState, today);
+  const unitCount = plural(goal.stats.current, unitLong);
+  // A stable array, so the heatmap's grid is rebuilt only when check-ins change.
+  const dateKeys = React.useMemo(() => goal.checkIns.map((c) => c.date), [goal.checkIns]);
 
   // Counts check-ins made while this card is on screen; each one plays the
-  // style's reward once. Derived during render (not in an effect) so the
-  // optimistic flip and the reward land in the same frame.
-  const [shownDone, setShownDone] = React.useState(doneToday);
-  const [rewards, setRewards] = React.useState(0);
-  if (doneToday !== shownDone) {
-    setShownDone(doneToday);
-    if (doneToday) setRewards(rewards + 1);
-  }
+  // reward once.
+  const rewards = useChangeCount(doneToday, (done) => done);
 
   // Tell the header's flame, which flares for every check-in.
   React.useEffect(() => {
@@ -252,8 +254,7 @@ export function GoalCard({
                 />
                 <StreakNumber value={goal.stats.current} />
                 <span className="self-end pb-0.5 text-sm text-muted-foreground">
-                  {unitLong}
-                  {goal.stats.current === 1 ? "" : "s"}
+                  {unitCount}
                 </span>
               </div>
               <p className={cn("mt-1.5 flex items-center gap-1 text-xs", TONE_TEXT[status.tone])}>
@@ -333,7 +334,7 @@ export function GoalCard({
             {/* The rewards are visual only; this says the same thing to screen readers. */}
             <span className="sr-only" aria-live="polite">
               {rewards > 0 && doneToday
-                ? `${goal.name} checked in. Streak: ${goal.stats.current} ${unitLong}${goal.stats.current === 1 ? "" : "s"}.`
+                ? `${goal.name} checked in. Streak: ${goal.stats.current} ${unitCount}.`
                 : ""}
             </span>
           </div>
@@ -346,7 +347,7 @@ export function GoalCard({
             className="history-zone mt-4 -mx-2 cursor-pointer rounded-lg px-2 pt-2 transition-colors hover:bg-muted/50"
           >
             <Heatmap
-              dateKeys={goal.checkIns.map((c) => c.date)}
+              dateKeys={dateKeys}
               color={goal.color}
               weeks={18}
               fluid
@@ -406,7 +407,7 @@ export function GoalCard({
       </AlertDialog>
     </>
   );
-}
+});
 
 /**
  * Renders the current streak number. When the number changes after the
@@ -414,12 +415,7 @@ export function GoalCard({
  * it is static, so a page load doesn't animate every card at once.
  */
 function StreakNumber({ value }: { value: number }) {
-  const [shown, setShown] = React.useState(value);
-  const [changes, setChanges] = React.useState(0);
-  if (value !== shown) {
-    setShown(value);
-    setChanges(changes + 1);
-  }
+  const changes = useChangeCount(value);
   return (
     <span
       key={changes}

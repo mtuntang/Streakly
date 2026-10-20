@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { CircleAlert, Flame, Pencil, X as XIcon } from "lucide-react";
 import {
   Sheet,
@@ -27,6 +28,7 @@ import { GoalIcon } from "./goal-icon";
 import { Heatmap } from "./heatmap";
 import { goalStatus, type StatusTone } from "./goal-status";
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/plural";
 
 interface GoalDetailSheetProps {
   goal: GoalDTO | null;
@@ -45,9 +47,10 @@ const TONE_TEXT: Record<StatusTone, string> = {
 /**
  * Renders the side sheet with a goal's history. It reads top to bottom
  * from now to long ago: the current streak and what today needs, then
- * the last 14 days, then the half-year heatmap.
+ * the last 14 days, then the half-year heatmap. Memoized, so a closed
+ * sheet does not re-render on every list change.
  */
-export function GoalDetailSheet({
+export const GoalDetailSheet = React.memo(function GoalDetailSheet({
   goal,
   open,
   onOpenChange,
@@ -135,8 +138,7 @@ export function GoalDetailSheet({
                 {goal.stats.current}
               </span>
               <span className="self-end pb-1 text-base text-muted-foreground">
-                {unitLong}
-                {goal.stats.current === 1 ? "" : "s"}
+                {plural(goal.stats.current, unitLong)}
               </span>
             </p>
             <p className={cn("mt-2 flex items-center gap-1 text-sm", TONE_TEXT[status.tone])}>
@@ -185,7 +187,7 @@ export function GoalDetailSheet({
       </SheetContent>
     </Sheet>
   );
-}
+});
 
 const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -222,7 +224,7 @@ function RecentDays({ goal }: { goal: GoalDTO }) {
   // against the days their cadence asked for.
   const summary =
     goal.schedule?.type === "weekly"
-      ? `${doneCount} check-in${doneCount === 1 ? "" : "s"}`
+      ? `${doneCount} ${plural(doneCount, "check-in")}`
       : scheduledCount === 14
         ? `${doneCount} of 14 days`
         : `${days.filter((d) => d.done && isScheduledDay(goal.schedule, d.weekday)).length} of ${scheduledCount} scheduled days`;

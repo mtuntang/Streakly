@@ -3,6 +3,7 @@
 import * as React from "react";
 import { cardCheckinState, getColor, type GoalDTO } from "@streakly/shared";
 import { cn } from "@/lib/utils";
+import { useChangeCount } from "@/hooks/use-change-count";
 
 /**
  * Returns the best value per streak unit, e.g. "12d · 3w". Weekly goals count
@@ -59,14 +60,9 @@ export function TodaySummary({
   );
   const dayClear = total > 0 && due.length === 0;
 
-  // Checking off the last goal due today plays the ribbon once. It is
-  // derived during render, so loading a finished day stays still.
-  const [shownClear, setShownClear] = React.useState(dayClear);
-  const [finishes, setFinishes] = React.useState(0);
-  if (dayClear !== shownClear) {
-    setShownClear(dayClear);
-    if (dayClear) setFinishes(finishes + 1);
-  }
+  // Checking off the last goal due today plays the ribbon once; loading a
+  // finished day stays still.
+  const finishes = useChangeCount(dayClear, (clear) => clear);
 
   const secondary = [
     { label: "Streaks", value: goals.filter((g) => g.stats.active).length },
