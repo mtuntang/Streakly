@@ -6,7 +6,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-figtree);
+  --font-display: var(--font-figtree);
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -23,6 +24,15 @@
   --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
   --color-brand: var(--brand);
+  --color-cell-empty: var(--cell-empty);
+  --color-goal-emerald: var(--goal-emerald);
+  --color-goal-rose: var(--goal-rose);
+  --color-goal-amber: var(--goal-amber);
+  --color-goal-orange: var(--goal-orange);
+  --color-goal-teal: var(--goal-teal);
+  --color-goal-violet: var(--goal-violet);
+  --color-goal-pink: var(--goal-pink);
+  --color-goal-lime: var(--goal-lime);
   --color-brand-soft: var(--brand-soft);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -45,78 +55,88 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/*
+ * Two themes on one layout: :root is light (an oat ground, white cards),
+ * .dark is dark (dusk navy, never pure black).
+ */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --radius: 1rem;
+  --cell-radius: 4px;
+
+  /* Calm light: an oat ground, white cards lifted by soft shadow. */
+  --background: oklch(0.968 0.012 80);
+  --foreground: oklch(0.26 0.018 60);
+  --card: oklch(0.995 0.004 85);
+  --card-foreground: oklch(0.26 0.018 60);
+  --popover: oklch(0.995 0.004 85);
+  --popover-foreground: oklch(0.26 0.018 60);
+  --primary: oklch(0.3 0.02 55);
+  --primary-foreground: oklch(0.98 0.005 85);
+  --secondary: oklch(0.935 0.014 80);
+  --secondary-foreground: oklch(0.26 0.018 60);
+  --muted: oklch(0.935 0.014 80);
+  --muted-foreground: oklch(0.47 0.02 60);
+  --accent: oklch(0.915 0.018 80);
+  --accent-foreground: oklch(0.26 0.018 60);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  /* The flame orange of the logo: the one accent the app UI uses. */
-  --brand: oklch(0.646 0.222 41.116);
-  --brand-soft: oklch(0.646 0.222 41.116 / 12%);
-  --ring: oklch(0.646 0.222 41.116);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --border: oklch(0.895 0.014 78);
+  --input: oklch(0.86 0.014 78);
+  /* The logo's flame: the one accent the UI chrome uses. */
+  --brand: oklch(0.67 0.17 45);
+  --brand-soft: oklch(0.67 0.17 45 / 14%);
+  --ring: oklch(0.56 0.17 42);
+  /* The logo's flame: base shade and tip shade. Both hold 3:1 on the oat ground. */
+  --flame-lo: oklch(0.56 0.19 36);
+  --flame-hi: oklch(0.66 0.17 62);
+  --card-shadow: 0 1px 2px oklch(0.3 0.03 60 / 0.05), 0 12px 32px -16px oklch(0.3 0.04 60 / 0.22);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --brand: oklch(0.705 0.213 47.604);
-  --brand-soft: oklch(0.705 0.213 47.604 / 14%);
-  --ring: oklch(0.705 0.213 47.604);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Dark: ink, not black. Every neutral sits on one hue (265) with low
+     chroma, and surfaces climb a lightness ladder so depth reads without
+     borders: page 0.19 → card 0.225 → sheet/dialog 0.245 → controls 0.28.
+     Text is a near-white on the same axis; muted text keeps 4.5:1+. */
+  --background: oklch(0.19 0.024 265);
+  --foreground: oklch(0.94 0.008 265);
+  --card: oklch(0.225 0.028 265);
+  --card-foreground: oklch(0.94 0.008 265);
+  --popover: oklch(0.245 0.03 265);
+  --popover-foreground: oklch(0.94 0.008 265);
+  --primary: oklch(0.93 0.01 265);
+  --primary-foreground: oklch(0.2 0.025 265);
+  --secondary: oklch(0.28 0.03 265);
+  --secondary-foreground: oklch(0.94 0.008 265);
+  --muted: oklch(0.28 0.03 265);
+  --muted-foreground: oklch(0.74 0.022 265);
+  --accent: oklch(0.3 0.032 265);
+  --accent-foreground: oklch(0.94 0.008 265);
+  --destructive: oklch(0.7 0.16 22);
+  --border: oklch(0.94 0.02 265 / 8%);
+  --input: oklch(0.94 0.02 265 / 14%);
+  --brand: oklch(0.78 0.12 58);
+  --brand-soft: oklch(0.78 0.12 58 / 16%);
+  --ring: oklch(0.78 0.12 58);
+  --flame-lo: oklch(0.72 0.16 42);
+  --flame-hi: oklch(0.88 0.13 85);
+  --cell-empty: oklch(0.3 0.026 265);
+  /* A hairline of light on the top edge, then a soft drop: the card is
+     lit from above instead of outlined. */
+  --card-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.05),
+    0 1px 2px oklch(0.1 0.02 265 / 0.5),
+    0 16px 36px -20px oklch(0.08 0.03 265 / 0.9);
+
+  /* Goal colors at night: one band, so no hue shouts over another. Same
+     lightness (warm yellows a step higher, where the eye reads them as
+     equal) and chroma capped near 0.13, well under Tailwind's neon 400s. */
+  --goal-emerald: oklch(0.74 0.13 163);
+  --goal-rose: oklch(0.72 0.135 14);
+  --goal-amber: oklch(0.81 0.125 78);
+  --goal-orange: oklch(0.75 0.135 52);
+  --goal-teal: oklch(0.76 0.11 188);
+  --goal-violet: oklch(0.72 0.135 296);
+  --goal-pink: oklch(0.74 0.13 350);
+  --goal-lime: oklch(0.82 0.13 128);
 }
 
 @layer base {
@@ -128,6 +148,10 @@
   }
   ::selection {
     background: var(--brand-soft);
+  }
+  html {
+    caret-color: var(--brand);
+    scrollbar-color: var(--input) var(--background);
   }
   input[type="checkbox"],
   progress {
@@ -182,4 +206,323 @@
 .marquee-text .marquee-gap {
   flex: none;
   width: 3em;
+}
+
+/* ── Surfaces ───────────────────────────────────────────────────────
+   Unlayered on purpose: these must beat the components' utility classes,
+   and no component sets these properties itself. Cards lift on soft
+   shadow alone, never a hard border. */
+[data-slot="card"] {
+  box-shadow: var(--card-shadow);
+  border-color: transparent;
+}
+
+/* Overlays sit one step up the ladder from the page they cover. */
+.dark :is([data-slot="sheet-content"], [data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="dropdown-menu-content"]) {
+  background-color: var(--popover);
+}
+.dark :is([data-slot="sheet-overlay"], [data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"]) {
+  background-color: oklch(0.12 0.03 265 / 0.6);
+}
+
+/* ── Motion ─────────────────────────────────────────────────────────
+   One easing for arrivals: a confident exponential ease-out. */
+:root {
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Refresh: whole turns, eased, so the icon never stops at an odd angle
+   (the component ends the animation on an iteration boundary). */
+@keyframes refresh-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.refresh-icon.is-turning {
+  animation: refresh-turn 750ms cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+@keyframes refresh-settle {
+  from {
+    opacity: 0;
+    transform: scale(0.5) rotate(-25deg);
+  }
+}
+.refresh-done {
+  /* --ring is the flame shade that holds 3:1 on the header in both themes. */
+  color: var(--ring);
+  animation: refresh-settle 320ms var(--ease-out);
+}
+
+/* The streak number when a check-in changes it: it rolls up from below. */
+@keyframes streak-roll {
+  from {
+    transform: translateY(45%);
+    opacity: 0;
+  }
+}
+.streak-num.is-changed {
+  display: inline-block;
+  animation: streak-roll 360ms var(--ease-out);
+}
+
+/* Check-in reward, in the goal's own color: a soft ripple out of the
+   button and a check mark that draws itself. */
+@keyframes checkin-ripple {
+  from {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.05, 1.5);
+  }
+}
+.checkin-ripple {
+  animation: checkin-ripple 700ms var(--ease-out) forwards;
+}
+@keyframes check-draw {
+  from {
+    stroke-dashoffset: 24;
+  }
+}
+.check-draw :is(path, polyline) {
+  stroke-dasharray: 24;
+  animation: check-draw 420ms 60ms var(--ease-out) backwards;
+}
+
+/* Today's heatmap cell lands when it is checked: the chain grows by one. */
+@keyframes cell-land {
+  0% {
+    transform: scale(0.3);
+    opacity: 0.2;
+  }
+  60% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.cell-land {
+  animation: cell-land 520ms var(--ease-out);
+}
+
+/* The last goal of the day: the ribbon brightens pill by pill, once. */
+@keyframes pill-finish {
+  40% {
+    filter: brightness(1.18) saturate(1.15);
+    transform: scaleY(1.6);
+  }
+}
+.ribbon-complete .today-pill {
+  animation: pill-finish 640ms var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+/* "Still to do" jumps here: a brief halo shows which card it found. */
+@keyframes card-spotlight {
+  0%,
+  35% {
+    box-shadow:
+      0 0 0 3px var(--brand-soft),
+      0 0 0 1.5px var(--brand),
+      var(--card-shadow);
+  }
+}
+/* A card being dragged lifts off the grid: a deeper shadow and a touch
+   larger, so it reads as held. */
+[data-slot="card"].card-lifted {
+  scale: 1.025;
+  box-shadow:
+    0 2px 4px oklch(0.2 0.03 60 / 0.08),
+    0 28px 48px -18px oklch(0.2 0.04 60 / 0.38);
+}
+.dark [data-slot="card"].card-lifted {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.06),
+    0 28px 48px -16px oklch(0.05 0.03 265 / 0.95);
+}
+[data-slot="card"].card-spotlight {
+  animation: card-spotlight 1400ms ease-out;
+}
+
+/* The logo. Load: the flame ignites from its base on a spring, the core
+   pops a beat later, and the letters rise through a clip in a fast
+   stagger (about 0.75s in all). Hover and check-in: a short flicker and a
+   ripple through the letters; check-in flares harder. */
+.brand-flame {
+  transform-origin: 50% 92%;
+  animation: brand-ignite 520ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.brand-flame-core {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: brand-core 380ms 170ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+/* The overshoot is written out as a keyframe, so the flame leaps past
+   its height once and settles, on a plain exponential ease. */
+@keyframes brand-ignite {
+  from {
+    transform: scale(0.35, 0);
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  55% {
+    transform: scale(1.05, 1.12);
+  }
+}
+@keyframes brand-core {
+  from {
+    transform: scale(0);
+  }
+  60% {
+    transform: scale(1.18);
+  }
+}
+/* Letters rise from the baseline through a clip; the padding keeps the
+   descender of the y inside the clip. */
+.brand-word {
+  display: inline-flex;
+  overflow: clip;
+  padding: 0.08em 0.04em 0.18em;
+  margin: -0.08em -0.04em -0.18em;
+}
+.brand-letter {
+  display: inline-block;
+  animation: brand-rise 440ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(150ms + var(--i, 0) * 26ms);
+}
+@keyframes brand-rise {
+  from {
+    transform: translateY(105%);
+  }
+}
+
+@keyframes brand-flicker {
+  0%,
+  100% {
+    transform: none;
+  }
+  30% {
+    transform: scale(0.94, 1.1) skewX(-5deg);
+  }
+  65% {
+    transform: scale(1.05, 0.95) skewX(3deg);
+  }
+}
+@keyframes brand-flare {
+  0%,
+  100% {
+    transform: none;
+    filter: none;
+  }
+  30% {
+    transform: scale(1.22, 1.3) skewX(-4deg);
+    filter: drop-shadow(0 0 0.12em var(--flame-hi));
+  }
+  60% {
+    transform: scale(0.95, 0.93) skewX(2deg);
+  }
+}
+@keyframes brand-core-pulse {
+  40% {
+    transform: scale(1.3);
+  }
+}
+@keyframes brand-ripple {
+  0%,
+  100% {
+    transform: none;
+  }
+  40% {
+    transform: translateY(-0.14em);
+  }
+}
+.group\/brand:hover .brand-flame {
+  animation: brand-flicker 340ms cubic-bezier(0.37, 0, 0.63, 1) 2;
+}
+.group\/brand:hover .brand-flame-core {
+  animation: brand-core-pulse 340ms cubic-bezier(0.37, 0, 0.63, 1) 2;
+}
+.group\/brand:hover .brand-letter {
+  animation: brand-ripple 300ms cubic-bezier(0.33, 1, 0.68, 1);
+  animation-delay: calc(60ms + var(--i, 0) * 24ms);
+}
+.brand-mark.is-flaring .brand-flame {
+  animation: brand-flare 560ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.brand-mark.is-flaring .brand-flame-core {
+  animation: brand-core-pulse 460ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.brand-mark.is-flaring .brand-letter {
+  animation: brand-ripple 340ms cubic-bezier(0.33, 1, 0.68, 1);
+  animation-delay: calc(90ms + var(--i, 0) * 26ms);
+}
+
+/* The card's History button rewinds its clock when hovered: looking back. */
+@keyframes history-rewind {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg);
+  }
+}
+.history-btn .history-clock {
+  transition: transform 200ms var(--ease-out);
+}
+.history-btn:is(:hover, :focus-visible) .history-clock,
+.history-zone:hover .history-btn .history-clock {
+  animation: history-rewind 700ms var(--ease-out);
+}
+.history-btn .history-arrow {
+  transition: transform 250ms var(--ease-out);
+}
+.history-btn:is(:hover, :focus-visible) .history-arrow,
+.history-zone:hover .history-btn .history-arrow {
+  transform: translateX(3px);
+}
+
+/* Reduced motion keeps what each animation tells the user (a refresh is
+   running, a check-in landed, which card was found) as color and opacity,
+   and drops the movement. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes refresh-breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .refresh-icon.is-turning {
+    animation: refresh-breathe 1.2s ease-in-out infinite;
+  }
+  .refresh-done,
+  .streak-num.is-changed,
+  .cell-land {
+    animation: fade-in 200ms ease-out;
+  }
+  .check-draw :is(path, polyline) {
+    animation: none;
+  }
+  .checkin-ripple {
+    display: none;
+  }
+  .ribbon-complete .today-pill,
+  .brand-flame,
+  .brand-flame-core,
+  .brand-letter,
+  .group\/brand:hover :is(.brand-flame, .brand-flame-core, .brand-letter),
+  .brand-mark.is-flaring :is(.brand-flame, .brand-flame-core, .brand-letter),
+  .history-btn .history-clock {
+    animation: none !important;
+  }
+  .history-btn .history-arrow {
+    transition: none;
+  }
 }

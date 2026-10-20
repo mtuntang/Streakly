@@ -57,7 +57,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         <BrandMark size="lg" />
 
         <div>
-          <div className="w-fit rounded-xl border border-border/70 bg-background p-5 shadow-sm dark:bg-background/60">
+          <div data-slot="card" className="w-fit rounded-xl border bg-card p-5">
             <div className="mb-4 flex items-center justify-between gap-6 text-sm">
               <span className="font-medium">Morning run</span>
               <span className="flex items-center gap-1.5 text-muted-foreground">
@@ -67,7 +67,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
             </div>
             <BrandHeatmap />
           </div>
-          <p className="mt-10 max-w-md text-3xl font-semibold tracking-tight text-balance">
+          <p className="mt-10 max-w-md font-display text-3xl font-semibold tracking-tight text-balance">
             Don&apos;t break the chain.
           </p>
           <p className="mt-3 max-w-sm text-base text-muted-foreground text-pretty">

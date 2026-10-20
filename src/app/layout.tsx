@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Figtree, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ErrorBoundary } from "@/components/error-boundary";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Figtree is the one face for text, headings and numbers.
+const figtree = Figtree({
+  variable: "--font-figtree",
   subsets: ["latin"],
 });
 
@@ -50,7 +51,7 @@ export default function RootLayout({
     // there; on <body> they were out of scope and the system font won.
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable}`}
+      className={`${figtree.variable} ${geistMono.variable}`}
       suppressHydrationWarning
     >
       <body className="antialiased bg-background text-foreground">
