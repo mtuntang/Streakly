@@ -1,6 +1,7 @@
 "use client";
 
-import { cardCheckinState, type GoalDTO } from "@streakly/shared";
+import * as React from "react";
+import { cardCheckinState, getColor, type GoalDTO } from "@streakly/shared";
 import { cn } from "@/lib/utils";
 
 /**
@@ -16,24 +17,30 @@ function bestByUnit(goals: GoalDTO[], pick: (g: GoalDTO) => number): string {
   return parts.length > 0 ? parts.join(" · ") : "0d";
 }
 
-/** Returns the line under the progress bar: what is still due today. */
-function remainingMessage(goals: GoalDTO[], now: Date): string {
-  const done = goals.filter((g) => g.stats.doneToday).length;
-  if (done === goals.length) return "All done for today. See you tomorrow.";
-  // Goals resting today are not due, so they never count as left to do.
-  const due = goals.filter(
-    (g) =>
-      !g.stats.doneToday &&
-      cardCheckinState(g.schedule, g.stats, now).kind !== "rest",
-  );
-  if (due.length === 0) return "Everything due today is done.";
-  return `Still to do: ${due.map((g) => g.name).join(", ")}`;
+/**
+ * Scrolls a goal's card into view, moves focus to its check-in button, and
+ * gives the card a brief halo so the eye lands on the right one.
+ */
+function jumpToGoal(id: string) {
+  const card = document.getElementById(`goal-${id}`);
+  if (!card) return;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  card.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+  card.querySelector<HTMLButtonElement>("[data-checkin]")?.focus({ preventScroll: true });
+  card.classList.remove("card-spotlight");
+  // Reading layout restarts the animation when the same chip is used twice.
+  void card.offsetWidth;
+  card.classList.add("card-spotlight");
+  card.addEventListener("animationend", () => card.classList.remove("card-spotlight"), {
+    once: true,
+  });
 }
 
 /**
  * Renders the page's summary: the greeting, how many goals are done today
- * with one progress segment per goal, and the all-time numbers in a quieter
- * row beside it.
+ * with the today ribbon (one pill per goal), the all-time numbers in a
+ * quieter row beside it, and what is still due as chips that jump to
+ * their card.
  */
 export function TodaySummary({
   goals,
@@ -44,6 +51,22 @@ export function TodaySummary({
 }) {
   const total = goals.length;
   const done = goals.filter((g) => g.stats.doneToday).length;
+  const allDone = total > 0 && done === total;
+  const now = new Date();
+  // Goals resting today are not due, so they never count as left to do.
+  const due = goals.filter(
+    (g) => !g.stats.doneToday && cardCheckinState(g.schedule, g.stats, now).kind !== "rest",
+  );
+  const dayClear = total > 0 && due.length === 0;
+
+  // Checking off the last goal due today plays the ribbon once. It is
+  // derived during render, so loading a finished day stays still.
+  const [shownClear, setShownClear] = React.useState(dayClear);
+  const [finishes, setFinishes] = React.useState(0);
+  if (dayClear !== shownClear) {
+    setShownClear(dayClear);
+    if (dayClear) setFinishes(finishes + 1);
+  }
 
   const secondary = [
     { label: "Streaks", value: goals.filter((g) => g.stats.active).length },
@@ -63,7 +86,12 @@ export function TodaySummary({
 
       <div className="mt-4 flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
         <p className="flex items-baseline gap-2">
-          <span className="text-4xl font-semibold tracking-tight tabular-nums">
+          <span
+            className={cn(
+              "font-display text-5xl font-semibold tracking-tight tabular-nums transition-colors duration-500",
+              dayClear && "text-ring",
+            )}
+          >
             {done}
           </span>
           <span className="text-base text-muted-foreground">
@@ -75,14 +103,17 @@ export function TodaySummary({
           {secondary.map((item) => (
             <div key={item.label} className="min-w-0">
               <dt className="truncate text-xs text-muted-foreground">{item.label}</dt>
-              <dd className="mt-0.5 text-sm font-medium tabular-nums">{item.value}</dd>
+              <dd className="mt-0.5 font-display text-sm font-medium tabular-nums">{item.value}</dd>
             </div>
           ))}
         </dl>
       </div>
 
+      {/* The today ribbon: one pill per goal, in card order, filled in the
+          goal's own color once it is checked. */}
       <div
-        className="mt-4 flex gap-1"
+        key={finishes}
+        className={cn("mt-4 flex gap-1.5", finishes > 0 && dayClear && "ribbon-complete")}
         role="progressbar"
         aria-label="Goals done today"
         aria-valuemin={0}
@@ -92,16 +123,46 @@ export function TodaySummary({
         {goals.map((g, i) => (
           <span
             key={g.id}
+            title={`${g.name}: ${g.stats.doneToday ? "done" : "not done"}`}
+            style={{ "--i": i } as React.CSSProperties}
             className={cn(
-              "h-1.5 flex-1 rounded-full transition-colors duration-500 ease-out",
-              i < done ? "bg-brand" : "bg-foreground/10",
+              "today-pill h-2 flex-1 rounded-full transition-colors duration-500 ease-out",
+              // Empty pills are outlined at 3:1+ so they stay visible in sunlight.
+              g.stats.doneToday
+                ? cn("is-done", getColor(g.color).cellOn)
+                : "ring-[1.5px] ring-inset ring-foreground/55",
             )}
           />
         ))}
       </div>
-      <p className="mt-2 truncate text-sm text-muted-foreground">
-        {remainingMessage(goals, new Date())}
-      </p>
+
+      {allDone ? (
+        <p className="mt-2.5 text-sm text-muted-foreground">All done for today. See you tomorrow.</p>
+      ) : due.length === 0 ? (
+        <p className="mt-2.5 text-sm text-muted-foreground">Everything due today is done.</p>
+      ) : (
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-sm text-muted-foreground">Still to do</span>
+          <ul className="contents">
+            {due.map((g) => (
+              <li key={g.id}>
+                <button
+                  type="button"
+                  onClick={() => jumpToGoal(g.id)}
+                  className="inline-flex h-8 max-w-56 items-center gap-1.5 rounded-full bg-card px-3 text-sm font-medium shadow-[var(--card-shadow)] transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
+                  aria-label={`Go to ${g.name}`}
+                >
+                  <span
+                    className={cn("h-2 w-2 shrink-0 rounded-full", getColor(g.color).cellOn)}
+                    aria-hidden
+                  />
+                  <span className="truncate">{g.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

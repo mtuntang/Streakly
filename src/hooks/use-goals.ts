@@ -81,8 +81,10 @@ export function useGoals() {
   // Goal ids with a check-in request in flight (see toggleToday).
   const togglesInFlight = React.useRef(new Set<string>());
 
+  // Resolves true when the list was loaded (or a newer load took over),
+  // false when every attempt failed and the error toast was shown.
   const load = React.useCallback(
-    async (silent = false, retries = 2) => {
+    async (silent = false, retries = 2): Promise<boolean> => {
       const loadId = ++latestLoad.current;
       if (!silent) setLoading(true);
       setRefreshing(true);
@@ -92,11 +94,11 @@ export function useGoals() {
           const data = await requestJson("/api/goals", GoalListSchema, {
             cache: "no-store",
           });
-          if (loadId !== latestLoad.current) return;
+          if (loadId !== latestLoad.current) return true;
           setGoals(data);
           setLoading(false);
           setRefreshing(false);
-          return;
+          return true;
         } catch (err) {
           lastError = err instanceof Error ? err : new Error("Unknown error");
           if (attempt < retries) {
@@ -105,7 +107,7 @@ export function useGoals() {
           }
         }
       }
-      if (loadId !== latestLoad.current) return;
+      if (loadId !== latestLoad.current) return true;
       toast({
         title: "Could not load goals",
         description:
@@ -117,6 +119,7 @@ export function useGoals() {
       if (!silent) setGoals([]);
       setLoading(false);
       setRefreshing(false);
+      return false;
     },
     [toast],
   );
@@ -145,7 +148,7 @@ export function useGoals() {
     };
   }, [load]);
 
-  /** Reloads the list without the loading placeholder. */
+  /** Reloads the list without the loading placeholder; resolves to whether it worked. */
   const refresh = React.useCallback(() => load(true), [load]);
 
   /**
@@ -171,12 +174,6 @@ export function useGoals() {
         jsonBody("POST", { date: today }),
       );
       setGoals((prev) => replaceGoal(prev, data.goal));
-      if (!wasDone) {
-        toast({
-          title: "Nice work! 🔥",
-          description: `Checked in for ${goal.name}`,
-        });
-      }
     } catch {
       // Undo only this click, on the goal as it is now: restoring the
       // pre-click copy would also wipe anything that arrived since, such as

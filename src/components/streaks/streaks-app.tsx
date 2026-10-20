@@ -5,7 +5,8 @@ import {
   DndContext,
   closestCenter,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -15,10 +16,11 @@ import {
   rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
-import { Flame, LogOut, Plus, RefreshCw } from "lucide-react";
+import { Flame, LogOut, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TodaySummary } from "./today-summary";
+import { RefreshButton } from "./refresh-button";
 import { GoalCard } from "./goal-card";
 import { GoalFormDialog } from "./goal-form-dialog";
 import { GoalDetailSheet } from "./goal-detail-sheet";
@@ -58,9 +60,11 @@ export function StreaksApp() {
   );
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
-    }),
+    // The whole card drags. A mouse starts after 5px of movement, so a
+    // click on the card's buttons is still a click; a finger starts after a
+    // short press, so a swipe over the cards still scrolls the page.
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
     // Space picks up the focused drag handle, arrows move it, Space drops.
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
@@ -105,25 +109,14 @@ export function StreaksApp() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-md">
+      <header className="app-header sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
           <h1>
             <BrandMark />
           </h1>
 
           <div className="flex items-center gap-1 sm:gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-10 rounded-full sm:size-9"
-              onClick={refresh}
-              aria-label="Refresh"
-              disabled={refreshing}
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
-              />
-            </Button>
+            <RefreshButton refreshing={refreshing} onRefresh={refresh} />
             <ThemeToggle />
             <Button
               variant="ghost"
