@@ -43,3 +43,39 @@ export const CheckInBodySchema = z.object({
 
 export type CreateGoalInput = z.infer<typeof CreateGoalSchema>;
 export type UpdateGoalInput = z.infer<typeof UpdateGoalSchema>;
+
+/**
+ * Contract for a goal as the api returns it. The web parses responses with
+ * it, so a server that answers with the wrong shape fails at the fetch with
+ * a clear error instead of rendering half a card. A test keeps it in step
+ * with the GoalDTO type.
+ */
+export const GoalDTOSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  color: z.string(),
+  icon: z.string(),
+  schedule: ScheduleSchema.nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  checkIns: z.array(z.object({ date: z.string() })),
+  stats: z.object({
+    current: z.number(),
+    longest: z.number(),
+    total: z.number(),
+    doneToday: z.boolean(),
+    active: z.boolean(),
+    unit: z.enum(["day", "week"]),
+    week: z
+      .object({ quota: z.number(), done: z.number(), met: z.boolean() })
+      .optional(),
+    rate30: z.number(),
+  }),
+});
+
+/** Contract for the check-in toggle and remove responses. */
+export const CheckInResponseSchema = z.object({
+  checked: z.boolean(),
+  goal: GoalDTOSchema,
+});
