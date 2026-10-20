@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { apiFetch } from "@/lib/api-fetch";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +20,7 @@ import {
   GOAL_ICONS,
   ScheduleSchema,
   weekdayShort,
+  type CreateGoalInput,
   type GoalDTO,
   type Schedule,
 } from "@streakly/shared";
@@ -35,7 +35,8 @@ interface GoalFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   goal?: GoalDTO | null;
-  onSaved: (goal: GoalDTO) => void;
+  /** Saves the goal (create when `id` is null); rejects with the api's message. */
+  onSave: (id: string | null, input: CreateGoalInput) => Promise<GoalDTO>;
 }
 
 /** Renders the dialog that creates a goal, or edits one when `goal` is set. */
@@ -43,7 +44,7 @@ export function GoalFormDialog({
   open,
   onOpenChange,
   goal,
-  onSaved,
+  onSave,
 }: GoalFormDialogProps) {
   const isEdit = !!goal;
   const { toast } = useToast();
@@ -104,29 +105,17 @@ export function GoalFormDialog({
     }
     setSaving(true);
     try {
-      const url = isEdit ? `/api/goals/${goal!.id}` : "/api/goals";
-      const method = isEdit ? "PATCH" : "POST";
-      const res = await apiFetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          description: description.trim() || null,
-          color,
-          icon,
-          schedule: parsedSchedule.data,
-        }),
+      const saved = await onSave(goal?.id ?? null, {
+        name: name.trim(),
+        description: description.trim() || null,
+        color,
+        icon,
+        schedule: parsedSchedule.data,
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error ?? "Failed to save goal");
-      }
-      const saved: GoalDTO = await res.json();
       toast({
         title: isEdit ? "Goal updated" : "Goal created",
         description: saved.name,
       });
-      onSaved(saved);
       onOpenChange(false);
     } catch (e) {
       toast({
