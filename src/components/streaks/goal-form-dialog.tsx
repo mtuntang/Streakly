@@ -16,9 +16,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { GripHorizontal } from "lucide-react";
 import {
+  CreateGoalSchema,
+  DEFAULT_COLOR,
+  DEFAULT_ICON,
   GOAL_COLORS,
   GOAL_ICONS,
-  ScheduleSchema,
   weekdayShort,
   type CreateGoalInput,
   type GoalDTO,
@@ -49,31 +51,23 @@ export function GoalFormDialog({
   const isEdit = !!goal;
   const { toast } = useToast();
 
-  const [name, setName] = React.useState("");
-  const [description, setDescription] = React.useState("");
-  const [color, setColor] = React.useState("emerald");
-  const [icon, setIcon] = React.useState("Flame");
-  const [mode, setMode] = React.useState<"daily" | "weekdays" | "weekly">("daily");
-  const [days, setDays] = React.useState<number[]>(DEFAULT_DAYS);
-  const [timesPerWeek, setTimesPerWeek] = React.useState(DEFAULT_TIMES_PER_WEEK);
+  // The parent remounts this dialog (a new `key`) each time it opens, so
+  // every field starts from `goal`, or from the defaults for a new goal.
+  const schedule = goal?.schedule ?? { type: "daily" as const };
+  const [name, setName] = React.useState(goal?.name ?? "");
+  const [description, setDescription] = React.useState(goal?.description ?? "");
+  const [color, setColor] = React.useState(goal?.color ?? DEFAULT_COLOR);
+  const [icon, setIcon] = React.useState(goal?.icon ?? DEFAULT_ICON);
+  const [mode, setMode] = React.useState<Schedule["type"]>(schedule.type);
+  const [days, setDays] = React.useState<number[]>(
+    schedule.type === "weekdays" ? schedule.days : DEFAULT_DAYS,
+  );
+  const [timesPerWeek, setTimesPerWeek] = React.useState(
+    schedule.type === "weekly" ? schedule.timesPerWeek : DEFAULT_TIMES_PER_WEEK,
+  );
   const [saving, setSaving] = React.useState(false);
 
-  React.useEffect(() => {
-    if (open) {
-      setName(goal?.name ?? "");
-      setDescription(goal?.description ?? "");
-      setColor(goal?.color ?? "emerald");
-      setIcon(goal?.icon ?? "Flame");
-      const s = goal?.schedule ?? { type: "daily" as const };
-      setMode(s.type);
-      // Reset both, not just the current mode's: otherwise a new goal starts
-      // with the days or per-week count of the goal edited last.
-      setDays(s.type === "weekdays" ? s.days : DEFAULT_DAYS);
-      setTimesPerWeek(s.type === "weekly" ? s.timesPerWeek : DEFAULT_TIMES_PER_WEEK);
-    }
-  }, [open, goal]);
-
-  const currentSchedule: Schedule | null =
+  const currentSchedule: Schedule =
     mode === "daily"
       ? { type: "daily" }
       : mode === "weekdays"
@@ -87,10 +81,8 @@ export function GoalFormDialog({
   }
 
   async function handleSave() {
-    if (!name.trim()) {
-      toast({ title: "Name is required", variant: "destructive" });
-      return;
-    }
+    // Checked before the schema: its message for an empty day list is
+    // generic, and this one tells the user what to do.
     if (mode === "weekdays" && days.length === 0) {
       toast({
         title: "Pick at least one day",
@@ -98,20 +90,21 @@ export function GoalFormDialog({
       });
       return;
     }
-    const parsedSchedule = ScheduleSchema.safeParse(currentSchedule);
-    if (!parsedSchedule.success) {
-      toast({ title: "Invalid cadence", variant: "destructive" });
+    // The same schema validates the request at the api.
+    const parsed = CreateGoalSchema.safeParse({
+      name,
+      description,
+      color,
+      icon,
+      schedule: currentSchedule,
+    });
+    if (!parsed.success) {
+      toast({ title: parsed.error.issues[0]!.message, variant: "destructive" });
       return;
     }
     setSaving(true);
     try {
-      const saved = await onSave(goal?.id ?? null, {
-        name: name.trim(),
-        description: description.trim() || null,
-        color,
-        icon,
-        schedule: parsedSchedule.data,
-      });
+      const saved = await onSave(goal?.id ?? null, parsed.data);
       toast({
         title: isEdit ? "Goal updated" : "Goal created",
         description: saved.name,
