@@ -306,6 +306,31 @@ for streak stats and for a check-in sent without a date
 **Gotcha:** tests that change the user (`update-user`) must send an
 `Origin` header. Without one, Better Auth rejects the request with a 403.
 
+### 21. A check-in redraws only its own card (PR #65)
+
+**Problem:** checking in one goal redrew every card on the page, and
+moving the pointer across a card's heatmap redrew all 126 day squares
+for each square it passed. Measured on the demo data in the dev build:
+a check-in redrew 570 components (~105ms), and hovering 20 squares took
+~109ms of rendering.
+
+**Decision:**
+
+- **Cards, the edit dialog and the history sheet skip redrawing** when
+  their goal didn't change (`React.memo`). This works because the goal
+  list keeps unchanged goals as the same objects and the click handlers
+  keep their identity (`useCallback` in `useGoals` and the page).
+- **The heatmap keeps its hover label apart from its squares.** One
+  listener on the grid reads which day is under the pointer, so hovering
+  redraws only the label.
+- **Result:** a check-in redraws 176 components (~35ms), and only the
+  card that changed; hovering 20 squares takes ~7ms.
+
+**Gotcha:** the drag library (dnd-kit) rebuilds its shared state whenever
+its sensor settings are a new object, and that redraws every card, memo
+or not. So the settings are constants outside the component, and the
+list of card ids passed to it only changes when the order does.
+
 ---
 
 ## Things we chose NOT to do (for now)
