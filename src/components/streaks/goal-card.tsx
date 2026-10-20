@@ -257,11 +257,22 @@ export const GoalCard = React.memo(function GoalCard({
                   {unitCount}
                 </span>
               </div>
-              <p className={cn("mt-1.5 flex items-center gap-1 text-xs", TONE_TEXT[status.tone])}>
+              <p className={cn("mt-1.5 flex flex-wrap items-center gap-x-1 gap-y-1 text-xs", TONE_TEXT[status.tone])}>
                 {status.tone === "risk" ? (
                   <CircleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 ) : null}
                 {status.text}
+                {/* Weekly: quota progress dots, one per required check-in.
+                    They sit in the status line, so a weekly card keeps the
+                    same rows as its neighbours and their buttons line up. */}
+                {isWeekly ? (
+                  <WeekDots
+                    done={goal.stats.week?.done ?? 0}
+                    quota={goal.stats.week?.quota ?? 0}
+                    dotOn={colorCfg.bg}
+                    met={goal.stats.week?.met ?? false}
+                  />
+                ) : null}
               </p>
             </div>
             <div className="shrink-0 space-y-0.5 text-right text-xs text-muted-foreground">
@@ -281,16 +292,6 @@ export const GoalCard = React.memo(function GoalCard({
               </p>
             </div>
           </div>
-
-          {/* Weekly: quota progress dots, one per required check-in */}
-          {isWeekly ? (
-            <WeekDots
-              done={goal.stats.week?.done ?? 0}
-              quota={goal.stats.week?.quota ?? 0}
-              dotOn={colorCfg.bg}
-              met={goal.stats.week?.met ?? false}
-            />
-          ) : null}
 
           {/* Today toggle; on rest days a voluntary check-in */}
           <div className="relative mt-4">
@@ -455,18 +456,23 @@ function WeekDots({
   met: boolean;
 }) {
   return (
-    <div
-      className="mt-3 flex gap-1.5"
+    <span
+      className="ml-1.5 inline-flex gap-1.5"
       role="img"
       aria-label={`${done} of ${quota} check-ins this week`}
     >
       {Array.from({ length: quota }, (_, i) => (
         <span
           key={i}
-          className={cn("h-2.5 w-2.5 rounded-full", i < done ? dotOn : "bg-border")}
+          className={cn(
+            "h-2.5 w-2.5 rounded-full",
+            // Open dots are outlined like the today ribbon's empty pills, so
+            // the quota still left stays visible at 3:1 in both themes.
+            i < done ? dotOn : "ring-[1.5px] ring-inset ring-foreground/55",
+          )}
           aria-current={i === done && !met ? "step" : undefined}
         />
       ))}
-    </div>
+    </span>
   );
 }
