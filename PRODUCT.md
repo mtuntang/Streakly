@@ -44,7 +44,7 @@ Shipped:
 - A check-in toggle for today, including voluntary check-ins on rest days.
 - Streak stats: current streak, best streak, total check-ins, and a completion rate. Weekly goals also show quota progress and an at-risk warning.
 - A heatmap of each goal's history, and a detail view.
-- Goals can be reordered by dragging or with the keyboard.
+- Goals can be reordered by dragging their cards, with a mouse or by touch.
 - Email and password accounts with a 10-character minimum password, sign-in rate limits, and the user's time zone saved.
 
 Not built yet. UI and copy must not suggest these exist:
@@ -87,7 +87,7 @@ Terminology: goal, check-in, streak, cadence ("Every day" / "Specific days" / "X
 The standard is WCAG 2.2 Level AA, the current W3C recommendation. It includes all of 2.1 AA, which is the level most accessibility laws point to. In practice:
 
 - Text contrast is at least 4.5:1 (3:1 for large text). Icons, controls, and focus indicators are at least 3:1.
-- Every action works with a keyboard, including reordering goals, and keyboard focus is always visible.
+- Every action works with a keyboard except reordering goals, and keyboard focus is always visible. Reordering is drag-only by choice. That one action falls short of WCAG 2.1.1 (keyboard) and 2.5.7 (an alternative to dragging).
 - Controls have names screen readers can announce. The heatmap has a text summary, and changes in state are announced.
 - Animation is reduced or removed when the user has asked their system for reduced motion.
 - Touch targets are at least 24×24 CSS px (the WCAG 2.2 AA minimum), and primary actions on mobile aim for 44px.
