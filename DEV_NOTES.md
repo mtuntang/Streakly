@@ -235,62 +235,38 @@ its sensor settings are a new object, and that redraws every card, memo
 or not. So the settings are constants outside the component, and the
 list of card ids passed to it only changes when the order does.
 
-### 22. Phones get a card deck and a wheel dock; nothing scrolls (PR #65)
+### 22. Phone and tablet layout (PR #65)
 
-**Problem:** on phones the cards stacked into a long page. The today ribbon
-sat at the top, out of thumb reach, and the footer only repeated the
-header.
+**Changed:**
 
-**Decision:**
+- **Phones:** cards are a sideways deck you swipe, one card at a time. The
+  row of goal pills moved to a bar at the bottom of the screen, where a
+  thumb can reach it. Swiping the bar turns the deck, and swiping the deck
+  turns the bar. Hold a pill to drag it and change the order.
+- **Small phones:** everything fits on one screen, with no scrolling down
+  to 320×568. Cards keep their full width; the summary at the top shrinks
+  instead.
+- **Tablets:** hold a card for a moment, then drag it to reorder.
+- **Footer removed.** It only repeated the header and took space on phones.
 
-- **One card at a time.** Phones show the cards as a sideways deck
-  (`useDeckFocus` tracks the front card). Below 640px wide only.
-- **The ribbon is a wheel docked at the bottom,** floating above the home
-  indicator (`viewportFit: "cover"` + `env(safe-area-inset-bottom)`).
-  Swiping the wheel turns the deck and the other way round
-  (`useLinkedScroll`; the position math is `mapScroll` in
-  `src/lib/linked-scroll.ts`, unit-tested). Tapping a pill turns the wheel,
-  never the deck directly.
-- **Hold a pill to reorder.** Holding lifts a copy (a dnd-kit
-  `DragOverlay`); sliding it to an edge scrolls the wheel slowly.
-- **No vertical scroll.** The header, summary, the whole front card and the
-  dock fit on one screen down to 320×568. When height runs out, the summary
-  gives way (height variants `short` ≤760px, `shorter` ≤700px,
-  `shortest` ≤600px). Card width and button sizes never shrink.
-- **The footer is gone** on every screen size.
-- **Tablets:** a card picks up after a 200ms hold, and the finger may
-  wander 12px during it. The card dips while you hold, and the phone buzzes
-  once on lift (Android only; iOS has no vibration on the web).
+**Fixed:**
 
-**Gotchas:**
+- Dragging a pill moved the order too fast to control. Now it moves slowly
+  and stops where you let go.
+- Swiping a card that started on its ⋯ button opened the menu.
+- Each swipe redrew the whole page. Now only the summary redraws.
 
-- The wheel turns snapping off while a pill is held. With snapping on,
-  every 1px auto-scroll nudge jumped a whole slot (about 17 pills a second).
-- The lifted pill is portalled to `document.body`, because the dock's
-  `backdrop-filter` became its containing block and moved it.
-- A Radix menu opens on touch-down, so a deck swipe that started on a
-  card's ⋯ button opened the menu. On touch, the card menu opens on the tap.
-- The front card is tracked inside `TodaySummary`, not the page. A swipe
-  then redraws 16 components instead of 52, and no cards.
-- Neither the header nor the dock blurs what's behind it on phones. A blur
-  over the turning deck would redraw on every frame of a swipe.
+### 23. Easier to see in light mode (PR #65)
 
-### 23. Done days stand out in light mode too (PR #65)
+**Fixed:**
 
-**Problem:** in light mode, done squares used Tailwind's 500 shades. For
-lime, amber, teal, green and sky they were only 1.4–1.8:1 against an empty
-square, so color alone barely told a done day from a missed one. WCAG asks
-for 3:1.
-
-**Decision:**
-
-- Done marks (heatmap squares, ribbon pills, dots) use a darker `--goal-*`
-  band in light mode too. Empty squares are a light wash (`--cell-empty`).
-  Lowest measured contrast: 3.18:1 in light, 5.18:1 in dark.
-- The due-button and rest-day outlines are darker. The at-risk amber is one
-  token, `--risk` (`text-risk`).
-- On touch screens, compact icon buttons keep their look but get a 44px tap
-  area (`.tap-44`, an invisible `::after`).
+- Done days on the heatmap looked almost the same as missed days for some
+  goal colors (lime, amber, teal, green, sky). Done colors are darker now,
+  so the difference is clear.
+- The outlines of the "Mark done" and rest-day buttons were too faint, so
+  they are darker.
+- Small icon buttons were hard to tap on phones. They now respond to taps
+  in a slightly larger area around them, with no change in how they look.
 
 ---
 
