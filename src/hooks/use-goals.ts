@@ -13,6 +13,7 @@ import { apiFetch } from "@/lib/api-fetch";
 import { useToast } from "@/hooks/use-toast";
 import {
   moveGoal,
+  neighborId,
   removeGoal,
   replaceGoal,
   restoreOrder,
@@ -60,6 +61,8 @@ function jsonBody(method: string, body: unknown): RequestInit {
  * midnight, and every change to it (check-in, reorder, save, delete).
  * Components get the list plus one function per action and never call the
  * api themselves, so optimistic updates and their undo live in one place.
+ * The action functions keep their identity across renders, so memoized
+ * goal cards skip re-rendering when only another goal changed.
  */
 export function useGoals() {
   const { toast } = useToast();
@@ -81,8 +84,10 @@ export function useGoals() {
   // Goal ids with a check-in request in flight (see toggleToday).
   const togglesInFlight = React.useRef(new Set<string>());
 
+  // Resolves true when the list was loaded (or a newer load took over),
+  // false when every attempt failed and the error toast was shown.
   const load = React.useCallback(
-    async (silent = false, retries = 2) => {
+    async (silent = false, retries = 2): Promise<boolean> => {
       const loadId = ++latestLoad.current;
       if (!silent) setLoading(true);
       setRefreshing(true);
@@ -92,11 +97,11 @@ export function useGoals() {
           const data = await requestJson("/api/goals", GoalListSchema, {
             cache: "no-store",
           });
-          if (loadId !== latestLoad.current) return;
+          if (loadId !== latestLoad.current) return true;
           setGoals(data);
           setLoading(false);
           setRefreshing(false);
-          return;
+          return true;
         } catch (err) {
           lastError = err instanceof Error ? err : new Error("Unknown error");
           if (attempt < retries) {
@@ -105,7 +110,7 @@ export function useGoals() {
           }
         }
       }
-      if (loadId !== latestLoad.current) return;
+      if (loadId !== latestLoad.current) return true;
       toast({
         title: "Could not load goals",
         description:
@@ -117,6 +122,7 @@ export function useGoals() {
       if (!silent) setGoals([]);
       setLoading(false);
       setRefreshing(false);
+      return false;
     },
     [toast],
   );
@@ -145,7 +151,7 @@ export function useGoals() {
     };
   }, [load]);
 
-  /** Reloads the list without the loading placeholder. */
+  /** Reloads the list without the loading placeholder; resolves to whether it worked. */
   const refresh = React.useCallback(() => load(true), [load]);
 
   /**
@@ -153,7 +159,7 @@ export function useGoals() {
    * flips at once; the server's reply brings the recomputed streaks, and a
    * failure undoes only this click.
    */
-  async function toggleToday(goal: GoalDTO) {
+  const toggleToday = React.useCallback(async (goal: GoalDTO) => {
     // The endpoint is a toggle, so a second click while the first request is
     // in flight would undo it. Ignore clicks until the goal's request settles.
     if (togglesInFlight.current.has(goal.id)) return;
@@ -171,12 +177,6 @@ export function useGoals() {
         jsonBody("POST", { date: today }),
       );
       setGoals((prev) => replaceGoal(prev, data.goal));
-      if (!wasDone) {
-        toast({
-          title: "Nice work! 🔥",
-          description: `Checked in for ${goal.name}`,
-        });
-      }
     } catch {
       // Undo only this click, on the goal as it is now: restoring the
       // pre-click copy would also wipe anything that arrived since, such as
@@ -186,14 +186,14 @@ export function useGoals() {
     } finally {
       togglesInFlight.current.delete(goal.id);
     }
-  }
+  }, [toast]);
 
   /**
    * Moves goal `activeId` to the position of `overId` and saves the order.
    * On success the server's list replaces the local one; on failure the old
    * order comes back, keeping any goal data that changed meanwhile.
    */
-  async function reorder(activeId: string, overId: string) {
+  const reorder = React.useCallback(async (activeId: string, overId: string) => {
     const before = goalsRef.current;
     const next = moveGoal(before, activeId, overId);
     if (!next) return;
@@ -215,14 +215,27 @@ export function useGoals() {
         variant: "destructive",
       });
     }
-  }
+  }, [toast]);
+
+  /**
+   * Moves goal `id` one place earlier (-1) or later (1) and saves the order:
+   * the menu way to reorder, for keyboard and screen-reader users and anyone
+   * who would rather not drag. Does nothing at either end of the list.
+   */
+  const move = React.useCallback(
+    (id: string, offset: -1 | 1) => {
+      const target = neighborId(goalsRef.current, id, offset);
+      if (target) void reorder(id, target);
+    },
+    [reorder],
+  );
 
   /**
    * Creates a goal, or updates goal `id` when it is set, and returns the
    * saved goal. Throws with the api's message on failure, so the form can
    * show it and stay open.
    */
-  async function saveGoal(id: string | null, input: CreateGoalInput) {
+  const saveGoal = React.useCallback(async (id: string | null, input: CreateGoalInput) => {
     const saved = await requestJson(
       id ? `/api/goals/${id}` : "/api/goals",
       GoalDTOSchema,
@@ -230,13 +243,13 @@ export function useGoals() {
     );
     setGoals((prev) => upsertGoal(prev, saved));
     return saved;
-  }
+  }, []);
 
   /** Deletes a goal. Throws on failure, so the caller can keep its dialog open. */
-  async function deleteGoal(id: string) {
+  const deleteGoal = React.useCallback(async (id: string) => {
     await requestJson(`/api/goals/${id}`, OkSchema, { method: "DELETE" });
     setGoals((prev) => removeGoal(prev, id));
-  }
+  }, []);
 
   return {
     goals,
@@ -245,6 +258,7 @@ export function useGoals() {
     refresh,
     toggleToday,
     reorder,
+    move,
     saveGoal,
     deleteGoal,
   };

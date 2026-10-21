@@ -1,12 +1,13 @@
 import { AuthForm } from "@/components/auth/auth-form";
+import { AuthShell } from "@/components/auth/auth-shell";
 
 export const metadata = { title: "Sign in — Streakly" };
 
 /** Sign-in page. */
 export default function SignInPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
+    <AuthShell>
       <AuthForm mode="sign-in" />
-    </main>
+    </AuthShell>
   );
 }
