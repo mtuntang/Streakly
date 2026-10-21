@@ -1,10 +1,11 @@
 # Streakly — Dev Notes
 
-This file explains the changes behind Streakly in plain words: what
-changed, why, and what was fixed. You should be able to read any section
-without having followed the project.
+This file explains the big decisions behind Streakly in plain words: what we
+chose and why. You should be able to read any section without having
+followed the project.
 
-- Each entry says what changed and what was fixed, in short bullets.
+- Every decision has the same shape: **Problem** (what was wrong or
+  needed), **Decision** (what we did), and **Why** (when it isn't obvious).
 - Newest decisions are at the bottom of "Decisions".
 - Each heading ends with the PR where it happened, so you can look up the code.
 
@@ -333,38 +334,171 @@ its sensor settings are a new object, and that redraws every card, memo
 or not. So the settings are constants outside the component, and the
 list of card ids passed to it only changes when the order does.
 
-### 22. Phone and tablet layout (PR #65)
+### 22. Check-ins come back on the day they were saved (PRs #28, #53)
 
-**Changed:**
+**Problem:** on a server running in a US time zone, every check-in came
+back from the api one day early. The card then still said "not done", so a
+second tap deleted the check-in. The demo seed had the same kind of bug
+(its check-ins landed on UTC days), and it crashed when run a second time
+because the demo user already existed.
 
-- **Phones:** cards are a sideways deck you swipe, one card at a time. The
-  row of goal pills moved to a bar at the bottom of the screen, where a
-  thumb can reach it. Swiping the bar turns the deck, and swiping the deck
-  turns the bar. Hold a pill to drag it and change the order.
-- **Small phones:** everything fits on one screen, with no scrolling down
-  to 320×568. Cards keep their full width; the summary at the top shrinks
-  instead.
-- **Tablets:** hold a card for a moment, then drag it to reorder.
-- **Footer removed.** It only repeated the header and took space on phones.
+**Decision:** the api reads stored dates in UTC (`fromDayDate`, the
+read-side twin of `toDayDate`). The seed uses local days and reuses the demo
+user if it is already there.
 
-**Fixed:**
+**Why:** the database returns a plain date as midnight UTC. Turning that
+into a day in local time shifts it back a day anywhere west of UTC.
 
-- Dragging a pill moved the order too fast to control. Now it moves slowly
-  and stops where you let go.
-- Swiping a card that started on its ⋯ button opened the menu.
-- Each swipe redrew the whole page. Now only the summary redraws.
+### 23. Weekly goals are counted in weeks, everywhere (PRs #48, #54, #55)
 
-### 23. Easier to see in light mode (PR #65)
+**Problem:** several places treated weekly goals like daily ones. The
+stats bar showed a 4-week streak as "4d". The weekly math had gaps: today
+didn't count as a day you could still check in, an empty week didn't reset
+the longest streak, and the streak stayed alive after this week's quota
+became impossible. Future-dated and duplicate check-ins also counted, and
+"Streak broken" showed on goals that never had a streak.
 
-**Fixed:**
+**Decision:**
 
-- Done days on the heatmap looked almost the same as missed days for some
-  goal colors (lime, amber, teal, green, sky). Done colors are darker now,
-  so the difference is clear.
-- The outlines of the "Mark done" and rest-day buttons were too faint, so
-  they are darker.
-- Small icon buttons were hard to tap on phones. They now respond to taps
-  in a slightly larger area around them, with no change in how they look.
+- The stats bar shows the best streak per unit (`2d · 4w`).
+- Weekly streaks follow the rules in decision 3, with tests for each gap.
+- Streak math ignores future and duplicate check-ins.
+- The completion rate follows the goal's schedule and is calculated on the
+  server.
+- "Streak broken" only shows for goals that once had a streak.
+
+### 24. The api rejects bad input and cleans what it keeps (PRs #52, #56)
+
+**Problem:** the api accepted check-in dates that aren't real days, and
+reorder lists of any size or shape. A goal deleted mid-request came back as
+`200 null`. Schedules could store the same weekday twice, and a blank
+description was stored as an empty string.
+
+**Decision:**
+
+- Invalid dates and reorder bodies get a 400. The reorder list has a size
+  cap.
+- A goal that vanished mid-request answers 404.
+- Schedules store each weekday once, sorted, and a blank description is
+  stored as empty (`null`).
+
+### 25. Check-ins and the goal form behave reliably (PRs #49, #57, #58)
+
+**Problem:**
+
+- A check-in used the date from when the page loaded. A page left open
+  overnight checked in for yesterday.
+- A double-click checked in and immediately un-checked.
+- A failed check-in undid newer changes along with itself.
+- The new-goal form started with the last edited goal's days and
+  per-week count.
+- Card buttons were announced to screen readers without saying which goal
+  they act on.
+- The delete dialog closed before the delete had finished.
+
+**Decision:** a check-in uses the date at click time, and the page reloads
+on a new day. A double-click no longer checks in and then un-checks. A failed
+check-in undoes only itself. The form resets to defaults for a new goal
+(Mon/Wed/Fri, 3 per week). Every card button names its goal, the delete
+dialog stays open and shows "Deleting…" until it finishes, and goals can
+be reordered with the keyboard.
+
+### 26. Lint fails on any warning (PR #59)
+
+**Problem:** a block in the lint config switched off about 30 rules, so
+problems went unnoticed.
+
+**Decision:** the block is gone, and `bun run lint` fails on any warning
+(`--max-warnings=0`). The few warnings it uncovered were fixed, and unused
+code was deleted (see decision 12).
+
+### 27. One hook loads and changes goals (PR #62)
+
+**Problem:** components called the api themselves. That caused real bugs:
+a failed reorder kept the unsaved order, a slow old refresh could overwrite
+newer data, and the history sheet could show a deleted goal.
+
+**Decision:** `useGoals()` owns loading and every change (check-in,
+reorder, save, delete). Components no longer call the api.
+
+- A failed reorder puts the old order back.
+- Only the newest load can update the list.
+- The history sheet follows live data and closes if its goal is deleted.
+- Every api response is checked against shared schemas
+  (`GoalDTOSchema`), and a test keeps them in step with the types.
+
+### 28. Reorder and check-ins on the server (PR #63)
+
+**Problem:** a reorder where none of the ids belonged to the user answered
+200 and changed nothing. Each check-in also loaded the goal three times.
+
+**Decision:** that reorder now answers 404 (a mixed list still reorders the
+user's own goals). A check-in checks ownership once with an id-only lookup:
+per tap, three full goal loads became one lookup plus one response load.
+
+### 29. One calm design where color shows state (PR #65)
+
+**Problem:** the app had two visual styles (Calm and Playful) and a toggle
+between them, which doubled the design work. Color was mostly decoration,
+so it didn't tell you what was due, done or at risk. The sign-in pages had
+no brand, and the dark theme's grays didn't match each other.
+
+**Decision:**
+
+- Calm is the only style, in light and dark. Playful, its toggle and the
+  milestone badges are gone.
+- Color means state. A due check-in has a goal-colored edge and label, done
+  is a soft tint, a rest day is dashed, and a weekly goal at risk is amber
+  with an icon.
+- The dark theme's grays share one hue, and the goal colors sit on one
+  matched band.
+- The sign-in pages show the brand next to the form, and errors appear
+  inline.
+- Small moments of feedback: on check-in, the card's flame flickers and the
+  streak number rolls up. Reduced-motion settings keep only feedback that
+  doesn't move.
+- The history sheet reads: now, the last 14 days with dates, then 6 months.
+
+### 30. Phones and tablets (PR #65)
+
+**Problem:** on phones the cards stacked into a long page, and the row of
+goal pills sat at the top, out of thumb reach. The footer only repeated the
+header. On tablets, cards couldn't be dragged to reorder. Reordering also
+needed a way that works without dragging.
+
+**Decision:**
+
+- Phones show the cards as a sideways deck, one card at a time. The pills
+  moved to a bar at the bottom of the screen, above the home indicator.
+  Swiping the bar turns the deck, and swiping the deck turns the bar. Hold
+  a pill and slide it to reorder.
+- Everything fits on one screen, with no scrolling down to 320×568. Cards
+  keep their full width; the summary at the top shrinks instead.
+- The new-goal dialog and the history sheet fit phones, with full-width
+  buttons.
+- On tablets, hold a card for a moment, then drag it.
+- Each card's menu has "Move earlier" and "Move later".
+- The footer is removed on every screen size.
+
+**Fixed along the way:** dragging a pill moved the order too fast to
+control; swiping a card that started on its ⋯ button opened the menu; and
+each swipe redrew the whole page (now only the summary redraws).
+
+**Why the bottom:** the thumb rests near the bottom of a phone. The bar
+floats a little above the edge so it doesn't clash with the system's swipe
+gestures.
+
+### 31. Easier to see in light mode (PR #65)
+
+**Problem:** in light mode, for some goal colors (lime, amber, teal, green,
+sky), done days on the heatmap looked almost the same as missed days. The
+"Mark done" and rest-day button outlines were faint, and small icon buttons
+were hard to tap on phones.
+
+**Decision:** done colors are darker in light mode, so a done day clearly
+stands out (at least 3:1 contrast, the accessibility minimum). Button
+outlines are darker. Small icon buttons respond to taps in a 44px area
+around them, with no change in how they look.
 
 ---
 
@@ -395,8 +529,9 @@ Postgres 16, started with `docker compose up -d` (port 5432). Demo data:
 3. Accounts and login, with each user seeing only their own goals.
    **DONE** (PRs #18, #20, #22, #23; fixes in #26).
    Each user's "today" follows their own time zone. **DONE** (PR #60).
-   **NEXT:** clean up how the website loads and changes goals (one
-   `useGoals()` hook).
+   How the website loads and changes goals now lives in one `useGoals()`
+   hook. **DONE** (PR #62).
+   The UI overhaul for phone, tablet and desktop is in review (PR #65).
 4. Payments with Stripe (after launch).
 5. Installable app that works offline (PWA). Changes made offline are stored
    in the browser and sent when back online. This is when the browser starts
