@@ -1,5 +1,6 @@
 # @streakly/shared
 
-Pure logic + types shared by web and (future) api.
+Plain logic and types used by both the website and `apps/api`: streak math,
+schedules, dates and form validation.
 
-Rule: imports NOTHING outside date-fns. No prisma, no react, no next.
+Rule: it imports only `date-fns` and `zod`. No Prisma, no React, no Next.js.
