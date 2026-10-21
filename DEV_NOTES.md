@@ -539,6 +539,30 @@ package list would be missing them.
 - Tailwind scans `packages/shared` explicitly. Goal colors are written there,
   and Tailwind only looks inside the website's own folder by default.
 
+### 33. Silent misconfiguration: Production settings for the api (PR #68)
+
+**Problem:** three settings would have quietly been wrong on a live server.
+
+- `bun run start` for the api didn't set `NODE_ENV=production`, so the
+  session cookie went out without the `Secure` flag, which keeps it off
+  plain-http connections.
+- The sign-in rate limit counts attempts per client IP address. Every
+  request reaches the api through the website's proxy, and the proxy adds
+  no IP of its own. Better Auth found no trustworthy IP, so **all users
+  shared one bucket**: five failed sign-ins by anyone locked out everyone
+  for a minute.
+- The demo seed creates an account whose password is in this repo. Run
+  against a production database, anyone could sign in to it.
+
+**Decision:**
+
+- The api's `start` script sets `NODE_ENV=production`.
+- `CLIENT_IP_HEADER` names the header the hosting provider's edge sets
+  with the visitor's real IP (`x-real-ip` on Railway, `fly-client-ip` on
+  Fly). The edge overwrites it, so a visitor can't fake it. With it set,
+  each IP gets its own limit.
+- The seed script refuses to run with `NODE_ENV=production`.
+
 ---
 
 ## How data is stored
