@@ -17,7 +17,7 @@ import {
   SortableContext,
   rectSortingStrategy,
 } from "@dnd-kit/sortable";
-import { LogOut, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TodaySummary } from "./today-summary";
@@ -35,6 +35,7 @@ import { GOAL_DRAG_INSTRUCTIONS, goalDragAnnouncements } from "./drag-announceme
 import { signOut } from "@/lib/session";
 import { buzzForTouch } from "@/lib/haptics";
 import { BrandMark } from "@/components/brand-mark";
+import { AccountMenu } from "@/components/auth/account-menu";
 
 // Drag sensor options live outside the component: dnd-kit rebuilds its
 // context whenever an options object is new, and that re-renders every
@@ -201,15 +202,7 @@ export function StreaksApp() {
           <div className="flex items-center gap-1 sm:gap-2">
             <RefreshButton refreshing={refreshing} onRefresh={refresh} />
             <ThemeToggle />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="tap-44 size-10 rounded-full sm:size-9"
-              onClick={handleSignOut}
-              aria-label="Sign out"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
+            <AccountMenu onSignOut={handleSignOut} />
             {/* Under 380px the label is read out but not shown, so the
                 header's controls still fit on one row at 320px. */}
             <Button

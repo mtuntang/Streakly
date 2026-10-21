@@ -22,17 +22,37 @@ const signInSchema = z.object({ user: userSchema }).passthrough();
 
 const sessionSchema = z.object({ user: userSchema }).passthrough();
 
-/** Returns the API's error message, or a generic one for unknown shapes. */
-async function errorMessage(res: Response): Promise<string> {
+/** An auth request the server refused, with Better Auth's error code when it sent one. */
+export class AuthError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string | null,
+    public readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+/** Reads the API's error body into an AuthError, with a generic message for unknown shapes. */
+async function authError(res: Response): Promise<AuthError> {
   try {
     const body = z
-      .object({ message: z.string().optional() })
+      .object({ message: z.string().optional(), code: z.string().optional() })
       .passthrough()
       .parse(await res.json());
-    return body.message ?? `Server responded with ${res.status}`;
+    return new AuthError(
+      body.message ?? `Server responded with ${res.status}`,
+      body.code ?? null,
+      res.status,
+    );
   } catch {
-    return `Server responded with ${res.status}`;
+    return new AuthError(`Server responded with ${res.status}`, null, res.status);
   }
+}
+
+/** Returns the API's error message, or a generic one for unknown shapes. */
+async function errorMessage(res: Response): Promise<string> {
+  return (await authError(res)).message;
 }
 
 /** Posts to an auth endpoint and returns the user, or throws the server's message. */
@@ -114,4 +134,48 @@ export async function getSession() {
 export async function signOut(): Promise<void> {
   const res = await fetch("/api/auth/sign-out", { method: "POST" });
   if (!res.ok) throw new Error(await errorMessage(res));
+}
+
+/** Posts JSON to an auth endpoint that answers with a status, throwing an AuthError on refusal. */
+async function postStatus(path: string, body: Record<string, unknown>): Promise<void> {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await authError(res);
+}
+
+/**
+ * Asks the server to email a reset link. It answers the same whether or
+ * not the email has an account, so success says nothing about the email.
+ * The link lands on this site's /reset-password page.
+ */
+export function requestPasswordReset(email: string): Promise<void> {
+  return postStatus("/api/auth/request-password-reset", {
+    email,
+    redirectTo: `${window.location.origin}/reset-password`,
+  });
+}
+
+/**
+ * Sets a new password with the token from a reset link. The server signs
+ * out every session, so the user signs in again afterwards. An expired or
+ * used token rejects with code INVALID_TOKEN.
+ */
+export function resetPassword(token: string, newPassword: string): Promise<void> {
+  return postStatus("/api/auth/reset-password", { token, newPassword });
+}
+
+/**
+ * Changes the password of the signed-in user. Other devices are signed
+ * out; this one stays signed in with a fresh session cookie. A wrong
+ * current password rejects with code INVALID_PASSWORD.
+ */
+export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  return postStatus("/api/auth/change-password", {
+    currentPassword,
+    newPassword,
+    revokeOtherSessions: true,
+  });
 }
