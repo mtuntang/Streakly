@@ -1,11 +1,10 @@
 # Streakly — Dev Notes
 
-This file explains the big decisions behind Streakly in plain words: what we
-chose, why, and what we chose NOT to do. You should be able to read any
-section without having followed the project.
+This file explains the changes behind Streakly in plain words: what
+changed, why, and what was fixed. You should be able to read any section
+without having followed the project.
 
-- Every decision has the same shape: **Problem** (what was wrong or
-  needed), **Decision** (what we did), and **Why** (when it isn't obvious).
+- Each entry says what changed and what was fixed, in short bullets.
 - Newest decisions are at the bottom of "Decisions".
 - Each heading ends with the PR where it happened, so you can look up the code.
 - Keep the file under ~350 lines. Move old sections to `DEV_NOTES-archive.md`
@@ -267,19 +266,6 @@ list of card ids passed to it only changes when the order does.
   they are darker.
 - Small icon buttons were hard to tap on phones. They now respond to taps
   in a slightly larger area around them, with no change in how they look.
-
----
-
-## Things we chose NOT to do (for now)
-
-- **No browser-rendering tests.** Display logic lives in small functions that
-  have unit tests. How it actually looks is checked by screenshot.
-- **No database rules for the schedule JSON.** zod checks it on write.
-- **No enums.** See decision 7 (in the archive).
-- **No footer.** Legal links, when they exist, go on the sign-in and
-  settings pages.
-- **No separate profiles or organizations.** One person = one account = one
-  way to log in.
 
 ---
 
