@@ -8,7 +8,8 @@ section without having followed the project.
   needed), **Decision** (what we did), and **Why** (when it isn't obvious).
 - Newest decisions are at the bottom of "Decisions".
 - Each heading ends with the PR where it happened, so you can look up the code.
-- Keep the file under ~350 lines. Move old sections to `DEV_NOTES-archive.md`.
+- Keep the file under ~350 lines. Move old sections to `DEV_NOTES-archive.md`
+  (decisions 7–12, 18 and 19 live there now).
 
 ---
 
@@ -113,71 +114,6 @@ never look checked.
 decides the card's mode once, and both views use it. `toggleButtonStyle()`
 does the same for the check-in button's look; tests lock the dark-mode fix.
 
-### 7. Plain string types instead of TypeScript enums
-
-**Problem:** we need types for fixed sets of values, like
-`"normal" | "quota-at-risk"`. TypeScript offers two ways: string unions and
-`enum`.
-
-**Decision:** string unions everywhere. When the list of values is needed at
-runtime, use an `as const` object.
-
-**Why:** the compiler catches typos in both, so enums add no safety. Network
-data arrives as plain strings either way; zod is what actually checks it.
-Enums also add hidden runtime code, and `const enum` breaks with fast build
-tools like bun.
-
-### 8. You can check in on a rest day (PR #8)
-
-**Problem:** on a day off its schedule (say, Saturday for a Mon–Fri goal),
-the check-in button was disabled, so the app refused real effort.
-
-**Decision:** allow it, but keep it honest:
-
-- It counts toward your total and shows on the heatmap.
-- It does NOT grow your streak, and it can't restart a broken one.
-- The button is dashed and says "Checked in on a rest day", so you know it
-  didn't count toward the streak.
-
-### 9. The heatmap is simple: done or not done (PR #9)
-
-**Problem:** the heatmap suggested more than the data holds. It had a
-"Less → More" legend, but a day is only ever checked or not. It also dimmed
-rest days, which looked like a rendering bug.
-
-**Decision:**
-
-- Two states only: checked or unchecked. The legend is gone.
-- Every unchecked day is the same gray. The goal's schedule badge already
-  says which days are rest days.
-- Weekly goals show one dot per required check-in instead of 7 day-dots,
-  because a weekly goal is about the count, not the days.
-
-### 10. Names say what things do
-
-**Problem:** `streakCopy` built the card's whole status line, not just
-streak text. And "copy" is design jargon that also sounds like "duplicate".
-
-**Decision:** renamed it `cardStatusMessage()`. Names describe what the code
-returns or does, not jargon.
-
-### 11. Text never misleads
-
-**Problem:** a goal that lost its streak and a brand-new goal both have zero
-current days. Showing "No active streak yet" for both is wrong for the
-first one.
-
-**Decision:** a lost streak says "Streak broken — start again today". Same
-numbers, different meaning, different text.
-
-### 12. Delete what you don't use (PR #10)
-
-**Problem:** unused files pile up: 34 unused UI components, 38 unused
-packages, stray copies of shared files, and old template folders.
-
-**Decision:** delete them. UI components come back with one command
-(`npx shadcn add <name>`), so there's no reason to keep unused ones.
-
 ### 13. How commits and PRs are done
 
 **Problem:** history is only useful if each entry is easy to read.
@@ -203,6 +139,10 @@ waste time when forgotten.
   port, not by name: find the process id with `netstat`, then
   `MSYS_NO_PATHCONV=1 taskkill /PID <id> /T /F`.
 - Check that a server is up with `curl`, not by reading its log file.
+- To run the production build locally, start the server from
+  `.next/standalone/Documents/Code/Streakly/`. Copy `.next/static` and
+  `public` into that folder first; the build script copies them one level
+  too high for this deep path. Use `node.exe`, not `node`, in git-bash.
 
 ### 15. Database ids are UUIDs made by Postgres (PR #19)
 
@@ -245,42 +185,6 @@ quietly make login unsafe.
   button. A network hiccup never logs you out.
 - **If your session expires mid-use,** the next request sends you to the
   sign-in page instead of showing error messages (`apiFetch`).
-
-### 18. The api's entry file must not default-export the app (PR #24)
-
-**Problem:** every website page showed "404 Not Found", while `/api` calls
-still worked. Bun automatically starts a web server for any entry file whose
-default export has a `fetch` function, on port 3000. The api's `index.ts`
-did exactly that, so it took the website's port.
-
-**Decision:** the app now lives in `apps/api/src/app.ts` as a named export
-(`{ app }`). `index.ts` only starts the server on port 4000. Tests and the
-seed script import from `app.ts`.
-
-### 19. Two login settings were silently not working (PR #26)
-
-**Problem 1:** sign-in from the website was rejected in development.
-Better Auth only accepts login requests coming from its own site; this
-stops other sites from making requests while you're logged in (called CSRF
-protection). It learns "its own site" from `BETTER_AUTH_URL`, which wasn't
-set. So it guessed from the forwarded request (`localhost:4000`, the api),
-while the browser said the request came from `localhost:3000` (the
-website). Every login looked like an attack. Tests missed it because Better
-Auth turns this check off during tests by default.
-
-**Decision 1:** set `BETTER_AUTH_URL` to the address people type in their
-browser (dev: `http://localhost:3000`), never the api's internal address.
-The check is now on in tests too.
-
-**Problem 2:** the limit on login attempts (5 per minute) wasn't applied.
-The setting was named `specialRules`, which Better Auth doesn't have, so it
-was skipped without any error.
-
-**Decision 2:** use the real name, `customRules`. A test pins the setting.
-
-**Lesson:** some libraries ignore a misspelled option without any error.
-After changing a security setting, test the real behavior (send the
-requests, watch for the block), not just whether the code compiles.
 
 ### 20. "Today" means the user's day, not the server's (PR #60)
 
@@ -331,6 +235,63 @@ its sensor settings are a new object, and that redraws every card, memo
 or not. So the settings are constants outside the component, and the
 list of card ids passed to it only changes when the order does.
 
+### 22. Phones get a card deck and a wheel dock; nothing scrolls (PR #65)
+
+**Problem:** on phones the cards stacked into a long page. The today ribbon
+sat at the top, out of thumb reach, and the footer only repeated the
+header.
+
+**Decision:**
+
+- **One card at a time.** Phones show the cards as a sideways deck
+  (`useDeckFocus` tracks the front card). Below 640px wide only.
+- **The ribbon is a wheel docked at the bottom,** floating above the home
+  indicator (`viewportFit: "cover"` + `env(safe-area-inset-bottom)`).
+  Swiping the wheel turns the deck and the other way round
+  (`useLinkedScroll`; the position math is `mapScroll` in
+  `src/lib/linked-scroll.ts`, unit-tested). Tapping a pill turns the wheel,
+  never the deck directly.
+- **Hold a pill to reorder.** Holding lifts a copy (a dnd-kit
+  `DragOverlay`); sliding it to an edge scrolls the wheel slowly.
+- **No vertical scroll.** The header, summary, the whole front card and the
+  dock fit on one screen down to 320×568. When height runs out, the summary
+  gives way (height variants `short` ≤760px, `shorter` ≤700px,
+  `shortest` ≤600px). Card width and button sizes never shrink.
+- **The footer is gone** on every screen size.
+- **Tablets:** a card picks up after a 200ms hold, and the finger may
+  wander 12px during it. The card dips while you hold, and the phone buzzes
+  once on lift (Android only; iOS has no vibration on the web).
+
+**Gotchas:**
+
+- The wheel turns snapping off while a pill is held. With snapping on,
+  every 1px auto-scroll nudge jumped a whole slot (about 17 pills a second).
+- The lifted pill is portalled to `document.body`, because the dock's
+  `backdrop-filter` became its containing block and moved it.
+- A Radix menu opens on touch-down, so a deck swipe that started on a
+  card's ⋯ button opened the menu. On touch, the card menu opens on the tap.
+- The front card is tracked inside `TodaySummary`, not the page. A swipe
+  then redraws 16 components instead of 52, and no cards.
+- Neither the header nor the dock blurs what's behind it on phones. A blur
+  over the turning deck would redraw on every frame of a swipe.
+
+### 23. Done days stand out in light mode too (PR #65)
+
+**Problem:** in light mode, done squares used Tailwind's 500 shades. For
+lime, amber, teal, green and sky they were only 1.4–1.8:1 against an empty
+square, so color alone barely told a done day from a missed one. WCAG asks
+for 3:1.
+
+**Decision:**
+
+- Done marks (heatmap squares, ribbon pills, dots) use a darker `--goal-*`
+  band in light mode too. Empty squares are a light wash (`--cell-empty`).
+  Lowest measured contrast: 3.18:1 in light, 5.18:1 in dark.
+- The due-button and rest-day outlines are darker. The at-risk amber is one
+  token, `--risk` (`text-risk`).
+- On touch screens, compact icon buttons keep their look but get a 44px tap
+  area (`.tap-44`, an invisible `::after`).
+
 ---
 
 ## Things we chose NOT to do (for now)
@@ -338,7 +299,9 @@ list of card ids passed to it only changes when the order does.
 - **No browser-rendering tests.** Display logic lives in small functions that
   have unit tests. How it actually looks is checked by screenshot.
 - **No database rules for the schedule JSON.** zod checks it on write.
-- **No enums.** See decision 7.
+- **No enums.** See decision 7 (in the archive).
+- **No footer.** Legal links, when they exist, go on the sign-in and
+  settings pages.
 - **No separate profiles or organizations.** One person = one account = one
   way to log in.
 
