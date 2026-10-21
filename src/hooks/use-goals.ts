@@ -13,6 +13,7 @@ import { apiFetch } from "@/lib/api-fetch";
 import { useToast } from "@/hooks/use-toast";
 import {
   moveGoal,
+  neighborId,
   removeGoal,
   replaceGoal,
   restoreOrder,
@@ -217,6 +218,19 @@ export function useGoals() {
   }, [toast]);
 
   /**
+   * Moves goal `id` one place earlier (-1) or later (1) and saves the order:
+   * the menu way to reorder, for keyboard and screen-reader users and anyone
+   * who would rather not drag. Does nothing at either end of the list.
+   */
+  const move = React.useCallback(
+    (id: string, offset: -1 | 1) => {
+      const target = neighborId(goalsRef.current, id, offset);
+      if (target) void reorder(id, target);
+    },
+    [reorder],
+  );
+
+  /**
    * Creates a goal, or updates goal `id` when it is set, and returns the
    * saved goal. Throws with the api's message on failure, so the form can
    * show it and stay open.
@@ -244,6 +258,7 @@ export function useGoals() {
     refresh,
     toggleToday,
     reorder,
+    move,
     saveGoal,
     deleteGoal,
   };

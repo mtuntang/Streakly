@@ -2,6 +2,7 @@ import { describe, it, expect } from "bun:test";
 import type { GoalDTO } from "@streakly/shared";
 import {
   moveGoal,
+  neighborId,
   removeGoal,
   replaceGoal,
   restoreOrder,
@@ -105,6 +106,19 @@ describe("moveGoal", () => {
   it("does not modify the list it is given", () => {
     moveGoal(list, "a", "c");
     expect(ids(list)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("neighborId", () => {
+  const list = [goal("a"), goal("b"), goal("c")];
+  it("returns the id one place earlier or later", () => {
+    expect(neighborId(list, "b", -1)).toBe("a");
+    expect(neighborId(list, "b", 1)).toBe("c");
+  });
+  it("returns null past either end or for an unknown id", () => {
+    expect(neighborId(list, "a", -1)).toBeNull();
+    expect(neighborId(list, "c", 1)).toBeNull();
+    expect(neighborId(list, "zzz", 1)).toBeNull();
   });
 });
 

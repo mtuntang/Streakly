@@ -62,6 +62,17 @@ export function moveGoal(
 }
 
 /**
+ * Returns the id of the goal `offset` places from goal `id` (-1 = the one
+ * before it, 1 = the one after), or null past either end. The card menu's
+ * "Move earlier" / "Move later" use it as the target for a reorder.
+ */
+export function neighborId(goals: GoalDTO[], id: string, offset: -1 | 1): string | null {
+  const index = goals.findIndex((g) => g.id === id);
+  if (index === -1) return null;
+  return goals[index + offset]?.id ?? null;
+}
+
+/**
  * Puts the goals back in an earlier id order, keeping each goal's current
  * data. Used to undo a failed reorder without also undoing check-ins or
  * edits that landed meanwhile; goals created since go at the end.
