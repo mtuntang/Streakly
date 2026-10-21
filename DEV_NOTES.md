@@ -615,6 +615,28 @@ account, and nobody could change a password they knew.
 database required every stored token value to be unique, and a reset
 token stores the user's id as its value. That rule is gone.
 
+### 36. Authentication: Password screens on the website (PR #71)
+
+**Problem:** the server could reset and change passwords (decision 35), but
+the website had no screens for it.
+
+**Decision:**
+
+- **Sign-in** has a "Forgot password?" link on the password row.
+- **Forgot password** asks for an email, then says where the link went
+  "if an account uses" that address, without confirming that one exists.
+  It offers to send another link.
+- **The reset page** asks for one new password, with a show/hide button
+  instead of a second "confirm" box. A used or expired link shows "This
+  link has expired" with a button to get a new one. After saving, the
+  sign-in page confirms the change.
+- **The header's sign-out button became an account menu**: who is signed
+  in, "Change password" and "Sign out". The header keeps the same number
+  of buttons on a phone.
+- **The account page** shows who is signed in and has the change-password
+  form. It warns that other devices will be signed out, and tells people
+  who forgot their current password how to reset it instead.
+
 ---
 
 ## How data is stored

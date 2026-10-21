@@ -46,10 +46,10 @@ Shipped:
 - A heatmap of each goal's history, and a detail view.
 - Goals can be reordered by dragging their cards, with a mouse or by touch.
 - Email and password accounts with a 10-character minimum password, sign-in rate limits, and the user's time zone saved.
+- Password reset by email (a one-time link that expires in 1 hour) and password change from the account page. Both sign out the user's other devices.
 
 Not built yet. UI and copy must not suggest these exist:
 
-- Password reset. It is planned and needs an email provider.
 - Reminders, notifications, social features, and sharing.
 - OAuth or social login. This was decided against: each account uses one login method.
 - Offline use. It is planned with the PWA.
