@@ -133,7 +133,7 @@ export function Heatmap({
         label={`${countText} in the last ${weeks} weeks`}
         onHover={setHover}
       />
-      <div className={cn("flex items-center gap-2 text-xs text-muted-foreground", action ? "mt-2.5 min-h-8 pb-2" : "sticky left-0 mt-2 h-4 w-fit")}>
+      <div className={cn("flex items-center gap-2 text-xs text-muted-foreground", action ? "mt-2.5 min-h-8 pb-2 shorter:mt-1.5 shorter:pb-0" : "sticky left-0 mt-2 h-4 w-fit")}>
         <span>
           {hover
             ? `${prettyDate(hover.key)} — ${hover.on ? "done" : "not done"}`
@@ -205,7 +205,7 @@ const HeatmapGrid = React.memo(function HeatmapGrid({
                     ? "bg-transparent"
                     : on
                       ? colorCfg.cellOn
-                      : "bg-foreground/15 dark:bg-cell-empty",
+                      : "bg-cell-empty",
                   // Today is outlined in the goal's own color, so it reads
                   // as "today" rather than as a focus or selection ring.
                   isToday &&
