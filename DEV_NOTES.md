@@ -17,7 +17,7 @@ Streakly is a habit tracker. You create goals ("run", "read"), check in on the
 days you do them, and the app counts your streak (how many scheduled days in a
 row you kept it up). It is a TypeScript monorepo:
 
-- The website (Next.js, at the repo root in `src/`). It holds no data itself.
+- `apps/web` (Next.js): the website. It holds no data itself.
 - `apps/api` (Hono on Bun): the server. It owns the database (Postgres via
   Prisma) and login (Better Auth). The website talks to it through a proxy:
   the browser calls `/api/...` on the website, and the website forwards it.
@@ -520,6 +520,25 @@ stands out (at least 3:1 contrast, the accessibility minimum). Button
 outlines are darker. Small icon buttons respond to taps in a 44px area
 around them, with no change in how they look.
 
+### 32. Code organization: The website moves into `apps/web` (PR #67)
+
+**Problem:** the website lived at the repo root, mixed in with the files
+for the whole monorepo. Its packages were listed in the root
+`package.json`, so the server quietly borrowed some of them (`better-auth`,
+`zod`) without listing them itself. A server image built from its own
+package list would be missing them.
+
+**Decision:**
+
+- The website is now a workspace package, `apps/web`, next to `apps/api`.
+  Each one lists exactly the packages it uses. The root keeps only the
+  shared tooling (TypeScript, ESLint, Prisma).
+- Root commands still work: `bun run dev`, `npm run build`, `bun test`,
+  `bun run lint`. Type checking is now `bun run typecheck`, which checks the
+  website and the rest of the repo separately.
+- Tailwind scans `packages/shared` explicitly. Goal colors are written there,
+  and Tailwind only looks inside the website's own folder by default.
+
 ---
 
 ## How data is stored
@@ -551,7 +570,9 @@ Postgres 16, started with `docker compose up -d` (port 5432). Demo data:
    Each user's "today" follows their own time zone. **DONE** (PR #60).
    How the website loads and changes goals now lives in one `useGoals()`
    hook. **DONE** (PR #62).
-   The UI overhaul for phone, tablet and desktop is in review (PR #65).
+   The UI overhaul for phone, tablet and desktop. **DONE** (PR #65).
+   Getting ready for a first deploy: the website moves into `apps/web`
+   (PR #67), Docker images, production settings. **IN PROGRESS.**
 4. Payments with Stripe (after launch).
 5. Installable app that works offline (PWA). Changes made offline are stored
    in the browser and sent when back online. This is when the browser starts
