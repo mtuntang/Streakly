@@ -1,6 +1,11 @@
-# Development runtime for Streakly.
-# Thin slice: postgres only. api/web still run on the host
-# (bun run dev) until full containerization lands before deploy.
+# Streakly's local runtime.
+#
+#   docker compose up -d
+#     Postgres only. The api and website run on the host (bun run dev).
+#
+#   BETTER_AUTH_SECRET=<32+ chars> docker compose --profile app up -d --build
+#     Also builds and runs the production images against the same database:
+#     the website on http://localhost:3100 and the api on the internal network.
 
 services:
   db:
@@ -17,6 +22,33 @@ services:
       test: ["CMD-SHELL", "pg_isready -U streakly -d streakly"]
       interval: 3s
       retries: 10
+
+  api:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://streakly:streakly@db:5432/streakly
+      # Left empty, the api refuses to start and says why.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      BETTER_AUTH_URL: http://localhost:3100
+      BETTER_AUTH_TRUSTED_ORIGINS: http://localhost:3100
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        API_PROXY_URL: http://api:4000
+    ports:
+      - "3100:3000"
+    depends_on:
+      - api
 
 volumes:
   pgdata:
