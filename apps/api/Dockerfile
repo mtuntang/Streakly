@@ -2,7 +2,8 @@
 #   docker build -f apps/api/Dockerfile -t streakly-api .
 #
 # Runtime env: DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL,
-# BETTER_AUTH_TRUSTED_ORIGINS, CLIENT_IP_HEADER, PORT (default 4000).
+# BETTER_AUTH_TRUSTED_ORIGINS, RESEND_API_KEY, EMAIL_FROM, CLIENT_IP_HEADER,
+# PORT (default 4000).
 
 FROM oven/bun:1.4.2 AS deps
 WORKDIR /app
