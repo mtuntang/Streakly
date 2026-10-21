@@ -543,9 +543,10 @@ package list would be missing them.
 
 **Problem:** three settings would have quietly been wrong on a live server.
 
-- `bun run start` for the api didn't set `NODE_ENV=production`, so the
-  session cookie went out without the `Secure` flag, which keeps it off
-  plain-http connections.
+- `bun run start` for the api didn't set `NODE_ENV=production`. Libraries
+  switch to their production behavior on it. Better Auth, for example,
+  sends people back to the site instead of showing its built-in error
+  page.
 - The sign-in rate limit counts attempts per client IP address. Every
   request reaches the api through the website's proxy, and the proxy adds
   no IP of its own. Better Auth found no trustworthy IP, so **all users
