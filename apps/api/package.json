@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development bun run --hot --env-file=../../.env src/index.ts",
-    "start": "bun run --env-file=../../.env src/index.ts",
+    "start": "NODE_ENV=production bun run --env-file=../../.env src/index.ts",
     "test": "bun test --env-file=../../.env"
   },
   "dependencies": {
