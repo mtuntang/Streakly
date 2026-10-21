@@ -31,7 +31,7 @@ the middle of one.**
 
 ## Decisions
 
-### 1. Streaks are calculated in one place only, on the server
+### 1. Duplicated logic: Streaks are calculated in one place only, on the server
 
 **Problem:** streak math is the hardest logic in the app ("what is today?",
 time zones, grace days). If the website and the server each had a copy,
@@ -42,7 +42,7 @@ runs only on the server. The browser receives finished numbers in
 `GoalDTO.stats` and only displays them. Before changing its signature,
 search for every place that calls it.
 
-### 2. A shared package with strict rules (PR #1)
+### 2. Dependency boundaries: A shared package with strict rules (PR #1)
 
 **Problem:** the website and the server need the same logic and types, but
 code that imports React or the database can't run on both sides.
@@ -57,7 +57,7 @@ without dragging the other along.
 **Gotcha:** bun does not link workspace packages automatically. The root
 `package.json` must list `"@streakly/shared": "workspace:*"`, or imports fail.
 
-### 3. A goal's schedule is one JSON field, checked by zod (PR #2)
+### 3. Data modeling: A goal's schedule is one JSON field, checked by zod (PR #2)
 
 **Problem:** goals needed schedules beyond "every day": chosen weekdays, or
 "N times a week".
@@ -80,7 +80,7 @@ quota can no longer be reached that week. Weeks start on Sunday.
 but today doesn't count against you until it's over. Days off your schedule
 neither add to nor break the streak.
 
-### 4. New fields never break old behavior (PR #7)
+### 4. Backward compatibility: New fields never break old behavior (PR #7)
 
 **Problem:** `StreakStats` keeps growing (weekly goals needed new fields).
 Every change risks quietly changing what existing daily goals return.
@@ -91,7 +91,7 @@ a test that pins the OLD shape is written first and must stay green.
 **Why:** it turns "this should still work" into a test that fails if it
 doesn't.
 
-### 5. Tests first, one commit per passing step
+### 5. Testing workflow: Tests first, one commit per passing step
 
 **Problem:** without a fixed routine, a change gets "done" without proof it
 works.
@@ -101,7 +101,7 @@ commit. Before any PR, run: `bunx tsc --noEmit` → `bun run lint` →
 `bun test` → `npm run build` (use npm, not bun, for builds on this Windows
 machine).
 
-### 6. One helper decides how a goal card looks (PRs #7–#9)
+### 6. Single source of truth: One helper decides how a goal card looks (PRs #7–#9)
 
 **Problem:** if the goal card and the detail panel each worked out on their
 own whether a goal is on a rest day, at risk, or broken, they could
@@ -112,7 +112,7 @@ never look checked.
 decides the card's mode once, and both views use it. `toggleButtonStyle()`
 does the same for the check-in button's look; tests lock the dark-mode fix.
 
-### 7. Plain string types instead of TypeScript enums
+### 7. Type safety: Plain string types instead of TypeScript enums
 
 **Problem:** we need types for fixed sets of values, like
 `"normal" | "quota-at-risk"`. TypeScript offers two ways: string unions and
@@ -126,7 +126,7 @@ data arrives as plain strings either way; zod is what actually checks it.
 Enums also add hidden runtime code, and `const enum` breaks with fast build
 tools like bun.
 
-### 8. You can check in on a rest day (PR #8)
+### 8. Product rule: You can check in on a rest day (PR #8)
 
 **Problem:** on a day off its schedule (say, Saturday for a Mon–Fri goal),
 the check-in button was disabled, so the app refused real effort.
@@ -138,7 +138,7 @@ the check-in button was disabled, so the app refused real effort.
 - The button is dashed and says "Checked in on a rest day", so you know it
   didn't count toward the streak.
 
-### 9. The heatmap is simple: done or not done (PR #9)
+### 9. Misleading UI: The heatmap is simple: done or not done (PR #9)
 
 **Problem:** the heatmap suggested more than the data holds. It had a
 "Less → More" legend, but a day is only ever checked or not. It also dimmed
@@ -152,7 +152,7 @@ rest days, which looked like a rendering bug.
 - Weekly goals show one dot per required check-in instead of 7 day-dots,
   because a weekly goal is about the count, not the days.
 
-### 10. Names say what things do
+### 10. Naming: Names say what things do
 
 **Problem:** `streakCopy` built the card's whole status line, not just
 streak text. And "copy" is design jargon that also sounds like "duplicate".
@@ -160,7 +160,7 @@ streak text. And "copy" is design jargon that also sounds like "duplicate".
 **Decision:** renamed it `cardStatusMessage()`. Names describe what the code
 returns or does, not jargon.
 
-### 11. Text never misleads
+### 11. Misleading text: Text never misleads
 
 **Problem:** a goal that lost its streak and a brand-new goal both have zero
 current days. Showing "No active streak yet" for both is wrong for the
@@ -169,7 +169,7 @@ first one.
 **Decision:** a lost streak says "Streak broken — start again today". Same
 numbers, different meaning, different text.
 
-### 12. Delete what you don't use (PR #10)
+### 12. Dead code: Delete what you don't use (PR #10)
 
 **Problem:** unused files pile up: 34 unused UI components, 38 unused
 packages, stray copies of shared files, and old template folders.
@@ -177,7 +177,7 @@ packages, stray copies of shared files, and old template folders.
 **Decision:** delete them. UI components come back with one command
 (`npx shadcn add <name>`), so there's no reason to keep unused ones.
 
-### 13. How commits and PRs are done
+### 13. Git workflow: How commits and PRs are done
 
 **Problem:** history is only useful if each entry is easy to read.
 
@@ -190,7 +190,7 @@ packages, stray copies of shared files, and old template folders.
 - Cleanup work gets its own PR, never mixed into a feature.
 - After a merge, delete the branch locally and on GitHub.
 
-### 14. Windows quirks (so they don't bite twice)
+### 14. Environment quirks: Windows quirks (so they don't bite twice)
 
 **Problem:** some tools behave differently on this Windows machine and
 waste time when forgotten.
@@ -207,7 +207,7 @@ waste time when forgotten.
   `public` into that folder first; the build script copies them one level
   too high for this deep path. Use `node.exe`, not `node`, in git-bash.
 
-### 15. Database ids are UUIDs made by Postgres (PR #19)
+### 15. Input validation: Database ids are UUIDs made by Postgres (PR #19)
 
 **Problem:** goals and check-ins need ids. With a Postgres `uuid` column, a
 badly formed id in a URL makes the database throw an error, which would
@@ -220,7 +220,7 @@ returns 404 (not found).
 **Not yet:** the browser doesn't create ids itself. That changes with offline
 mode (roadmap item 5).
 
-### 16. Every goal belongs to one user (PR #20)
+### 16. Data isolation: Every goal belongs to one user (PR #20)
 
 **Problem:** once the app has several users, nobody should be able to see or
 change anyone else's goals.
@@ -230,7 +230,7 @@ Someone else's goal answers 404 (not found), never 403 (forbidden).
 
 **Why 404:** a 403 would confirm that the goal exists. A 404 reveals nothing.
 
-### 17. Signing in on the website (PR #23)
+### 17. Authentication: Signing in on the website (PR #23)
 
 **Problem:** the website had no sign-in screen, and a few settings could
 quietly make login unsafe.
@@ -249,7 +249,7 @@ quietly make login unsafe.
 - **If your session expires mid-use,** the next request sends you to the
   sign-in page instead of showing error messages (`apiFetch`).
 
-### 18. The api's entry file must not default-export the app (PR #24)
+### 18. Port conflict: The api's entry file must not default-export the app (PR #24)
 
 **Problem:** every website page showed "404 Not Found", while `/api` calls
 still worked. Bun automatically starts a web server for any entry file whose
@@ -260,7 +260,7 @@ did exactly that, so it took the website's port.
 (`{ app }`). `index.ts` only starts the server on port 4000. Tests and the
 seed script import from `app.ts`.
 
-### 19. Two login settings were silently not working (PR #26)
+### 19. Silent misconfiguration: Two login settings were silently not working (PR #26)
 
 **Problem 1:** sign-in from the website was rejected in development.
 Better Auth only accepts login requests coming from its own site; this
@@ -285,7 +285,7 @@ was skipped without any error.
 After changing a security setting, test the real behavior (send the
 requests, watch for the block), not just whether the code compiles.
 
-### 20. "Today" means the user's day, not the server's (PR #60)
+### 20. Time zone bug: "Today" means the user's day, not the server's (PR #60)
 
 **Problem:** the server decided what "today" was from its own clock. On a
 server running in UTC, a user in a time zone where it was already tomorrow
@@ -309,7 +309,7 @@ for streak stats and for a check-in sent without a date
 **Gotcha:** tests that change the user (`update-user`) must send an
 `Origin` header. Without one, Better Auth rejects the request with a 403.
 
-### 21. A check-in redraws only its own card (PR #65)
+### 21. Unnecessary re-renders: A check-in redraws only its own card (PR #65)
 
 **Problem:** this was a case of **unnecessary re-renders**. React redraws
 ("re-renders") a component whenever the component that contains it
@@ -338,7 +338,7 @@ its sensor settings are a new object, and that redraws every card, memo
 or not. So the settings are constants outside the component, and the
 list of card ids passed to it only changes when the order does.
 
-### 22. Check-ins come back on the day they were saved (PRs #28, #53)
+### 22. Time zone shift: Check-ins come back on the day they were saved (PRs #28, #53)
 
 **Problem:** this was a **time zone shift**: a date saved in one time
 zone was read back in another, so it moved to a different day. On a server
@@ -355,7 +355,7 @@ user if it is already there.
 **Why:** the database returns a plain date as midnight UTC. Turning that
 into a day in local time shifts it back a day anywhere west of UTC.
 
-### 23. Weekly goals are counted in weeks, everywhere (PRs #48, #54, #55)
+### 23. Unit mismatch: Weekly goals are counted in weeks, everywhere (PRs #48, #54, #55)
 
 **Problem:** several places treated weekly goals like daily ones. The
 stats bar showed a 4-week streak as "4d". The weekly math had gaps: today
@@ -373,7 +373,7 @@ became impossible. Future-dated and duplicate check-ins also counted, and
   server.
 - "Streak broken" only shows for goals that once had a streak.
 
-### 24. The api rejects bad input and cleans what it keeps (PRs #52, #56)
+### 24. Input validation: The api rejects bad input and cleans what it keeps (PRs #52, #56)
 
 **Problem:** the api accepted check-in dates that aren't real days, and
 reorder lists of any size or shape. A goal deleted mid-request came back as
@@ -388,7 +388,7 @@ description was stored as an empty string.
 - Schedules store each weekday once, sorted, and a blank description is
   stored as empty (`null`).
 
-### 25. Check-ins and the goal form behave reliably (PRs #49, #57, #58)
+### 25. Stale data and double submit: Check-ins and the goal form behave reliably (PRs #49, #57, #58)
 
 **Problem:** two classic reliability bugs, plus a few smaller ones.
 
@@ -410,7 +410,7 @@ check-in undoes only itself. The form resets to defaults for a new goal
 dialog stays open and shows "Deleting…" until it finishes, and goals can
 be reordered with the keyboard.
 
-### 26. Lint fails on any warning (PR #59)
+### 26. Code quality: Lint fails on any warning (PR #59)
 
 **Problem:** a block in the lint config switched off about 30 rules, so
 problems went unnoticed.
@@ -419,7 +419,7 @@ problems went unnoticed.
 (`--max-warnings=0`). The few warnings it uncovered were fixed, and unused
 code was deleted (see decision 12).
 
-### 27. One hook loads and changes goals (PR #62)
+### 27. Race condition: One hook loads and changes goals (PR #62)
 
 **Problem:** components called the api themselves, so no single place
 knew the true state of the goal list. That caused real bugs:
@@ -438,7 +438,7 @@ reorder, save, delete). Components no longer call the api.
 - Every api response is checked against shared schemas
   (`GoalDTOSchema`), and a test keeps them in step with the types.
 
-### 28. Reorder and check-ins on the server (PR #63)
+### 28. Redundant database queries: Reorder and check-ins on the server (PR #63)
 
 **Problem:** a reorder where none of the ids belonged to the user answered
 200 and changed nothing, so a wrong request looked like a success. Each
@@ -449,7 +449,7 @@ three times, where one lookup was enough.
 user's own goals). A check-in checks ownership once with an id-only lookup:
 per tap, three full goal loads became one lookup plus one response load.
 
-### 29. One calm design where color shows state (PR #65)
+### 29. Visual design: One calm design where color shows state (PR #65)
 
 **Problem:** the app had two visual styles (Calm and Playful) and a toggle
 between them, which doubled the design work. Color was mostly decoration,
@@ -472,7 +472,7 @@ no brand, and the dark theme's grays didn't match each other.
   doesn't move.
 - The history sheet reads: now, the last 14 days with dates, then 6 months.
 
-### 30. Phones and tablets (PR #65)
+### 30. Responsive design: Phones and tablets (PR #65)
 
 **Problem:** on phones the cards stacked into a long page, and the row of
 goal pills sat at the top, out of thumb reach. The footer only repeated the
@@ -508,7 +508,7 @@ needed a way that works without dragging.
 floats a little above the edge so it doesn't clash with the system's swipe
 gestures.
 
-### 31. Easier to see in light mode (PR #65)
+### 31. Accessibility: Easier to see in light mode (PR #65)
 
 **Problem:** in light mode, for some goal colors (lime, amber, teal, green,
 sky), done days on the heatmap looked almost the same as missed days. The
