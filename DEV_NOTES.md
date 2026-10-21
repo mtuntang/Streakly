@@ -311,9 +311,13 @@ for streak stats and for a check-in sent without a date
 
 ### 21. A check-in redraws only its own card (PR #65)
 
-**Problem:** checking in one goal redrew every card on the page, and
-moving the pointer across a card's heatmap redrew all 126 day squares
-for each square it passed. Measured on the demo data in the dev build:
+**Problem:** this was a case of **unnecessary re-renders**. React redraws
+("re-renders") a component whenever the component that contains it
+redraws, even if nothing it shows has changed. Each redraw costs time, so
+a small change that redraws the whole page makes the app feel slow.
+Here, checking in one goal redrew every card on the page, and moving the
+pointer across a card's heatmap redrew all 126 day squares for each square
+it passed. Measured on the demo data in the dev build:
 a check-in redrew 570 components (~105ms), and hovering 20 squares took
 ~109ms of rendering.
 
@@ -336,8 +340,10 @@ list of card ids passed to it only changes when the order does.
 
 ### 22. Check-ins come back on the day they were saved (PRs #28, #53)
 
-**Problem:** on a server running in a US time zone, every check-in came
-back from the api one day early. The card then still said "not done", so a
+**Problem:** this was a **time zone shift**: a date saved in one time
+zone was read back in another, so it moved to a different day. On a server
+running in a US time zone, every check-in came back from the api one day
+early. The card then still said "not done", so a
 second tap deleted the check-in. The demo seed had the same kind of bug
 (its check-ins landed on UTC days), and it crashed when run a second time
 because the demo user already existed.
@@ -384,11 +390,12 @@ description was stored as an empty string.
 
 ### 25. Check-ins and the goal form behave reliably (PRs #49, #57, #58)
 
-**Problem:**
+**Problem:** two classic reliability bugs, plus a few smaller ones.
 
-- A check-in used the date from when the page loaded. A page left open
-  overnight checked in for yesterday.
-- A double-click checked in and immediately un-checked.
+- **Stale data:** a check-in used the date the page saw when it loaded,
+  not the real date. A page left open overnight checked in for yesterday.
+- **Double submit:** each click sent its own request, so a double-click
+  checked in and immediately un-checked.
 - A failed check-in undid newer changes along with itself.
 - The new-goal form started with the last edited goal's days and
   per-week count.
@@ -414,9 +421,13 @@ code was deleted (see decision 12).
 
 ### 27. One hook loads and changes goals (PR #62)
 
-**Problem:** components called the api themselves. That caused real bugs:
-a failed reorder kept the unsaved order, a slow old refresh could overwrite
-newer data, and the history sheet could show a deleted goal.
+**Problem:** components called the api themselves, so no single place
+knew the true state of the goal list. That caused real bugs:
+
+- A failed reorder kept the unsaved order on screen.
+- A **race condition**: two loads could be in flight at once, and if the
+  older one finished last, its outdated data overwrote the newer data.
+- The history sheet could show a goal that had been deleted.
 
 **Decision:** `useGoals()` owns loading and every change (check-in,
 reorder, save, delete). Components no longer call the api.
@@ -430,7 +441,9 @@ reorder, save, delete). Components no longer call the api.
 ### 28. Reorder and check-ins on the server (PR #63)
 
 **Problem:** a reorder where none of the ids belonged to the user answered
-200 and changed nothing. Each check-in also loaded the goal three times.
+200 and changed nothing, so a wrong request looked like a success. Each
+check-in also made **redundant database queries**: it loaded the same goal
+three times, where one lookup was enough.
 
 **Decision:** that reorder now answers 404 (a mixed list still reorders the
 user's own goals). A check-in checks ownership once with an id-only lookup:
@@ -480,9 +493,16 @@ needed a way that works without dragging.
 - Each card's menu has "Move earlier" and "Move later".
 - The footer is removed on every screen size.
 
-**Fixed along the way:** dragging a pill moved the order too fast to
-control; swiping a card that started on its ⋯ button opened the menu; and
-each swipe redrew the whole page (now only the summary redraws).
+**Fixed along the way:**
+
+- Dragging a pill moved the order too fast to control. The bar snapped to
+  the next pill on every tiny scroll step, so a slow drag jumped many
+  places. Snapping is now off while a pill is held.
+- Swiping a card that started on its ⋯ button opened the menu, because the
+  menu opened as soon as a finger touched it. On touch, it now opens on a
+  tap.
+- Each swipe redrew the whole page: **unnecessary re-renders** again (see
+  decision 21). Now only the summary redraws.
 
 **Why the bottom:** the thumb rests near the bottom of a phone. The bar
 floats a little above the edge so it doesn't clash with the system's swipe
