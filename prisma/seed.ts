@@ -85,8 +85,15 @@ async function ensureDemoUser(): Promise<{ id: string }> {
   return { id: user.id };
 }
 
-/** Seeds the demo user and sample goals, unless the database already has goals. */
+/**
+ * Seeds the demo user and sample goals, unless the database already has goals.
+ * Refuses to run in production, because the demo password is public and
+ * anyone could sign in to the demo account on a live site.
+ */
 async function main() {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Refusing to seed demo data with NODE_ENV=production.");
+  }
   const count = await db.goal.count();
   if (count > 0) {
     console.log(`DB already has ${count} goals — skipping seed.`);

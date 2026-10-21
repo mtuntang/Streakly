@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Goal color classes live in the shared package, outside this app's folder,
+   so Tailwind has to be told to scan it. */
+@source "../../../../packages/shared/src";
+
 @custom-variant dark (&:is(.dark *));
 
 /* Phones by screen height. The phone view should show the summary, the

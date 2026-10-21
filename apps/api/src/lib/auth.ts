@@ -46,7 +46,21 @@ export const auth = betterAuth({
   // Better Auth skips its origin (CSRF) check under NODE_ENV=test by
   // default. Forcing it on keeps tests exercising the same check that
   // runs in development and production.
-  advanced: { disableOriginCheck: false },
+  //
+  // The client IP keys the rate limit. Every request reaches the api through
+  // the web app's proxy, which forwards the browser's headers unchanged and
+  // adds no IP of its own, so only a header set by the host's edge proxy can
+  // be trusted. Which header that is depends on the host (x-real-ip on
+  // Railway, fly-client-ip on Fly), so CLIENT_IP_HEADER names it. Unset, all
+  // users share one rate-limit bucket in production.
+  advanced: {
+    disableOriginCheck: false,
+    ipAddress: {
+      ipAddressHeaders: process.env.CLIENT_IP_HEADER
+        ? [process.env.CLIENT_IP_HEADER]
+        : undefined,
+    },
+  },
   // Rate limiting is on everywhere except bun test: a suite makes hundreds
   // of in-process requests from one IP inside a single window, which would
   // exhaust the limit and fail unrelated tests.

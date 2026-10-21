@@ -17,7 +17,7 @@ Streakly is a habit tracker. You create goals ("run", "read"), check in on the
 days you do them, and the app counts your streak (how many scheduled days in a
 row you kept it up). It is a TypeScript monorepo:
 
-- The website (Next.js, at the repo root in `src/`). It holds no data itself.
+- `apps/web` (Next.js): the website. It holds no data itself.
 - `apps/api` (Hono on Bun): the server. It owns the database (Postgres via
   Prisma) and login (Better Auth). The website talks to it through a proxy:
   the browser calls `/api/...` on the website, and the website forwards it.
@@ -520,6 +520,50 @@ stands out (at least 3:1 contrast, the accessibility minimum). Button
 outlines are darker. Small icon buttons respond to taps in a 44px area
 around them, with no change in how they look.
 
+### 32. Code organization: The website moves into `apps/web` (PR #67)
+
+**Problem:** the website lived at the repo root, mixed in with the files
+for the whole monorepo. Its packages were listed in the root
+`package.json`, so the server quietly borrowed some of them (`better-auth`,
+`zod`) without listing them itself. A server image built from its own
+package list would be missing them.
+
+**Decision:**
+
+- The website is now a workspace package, `apps/web`, next to `apps/api`.
+  Each one lists exactly the packages it uses. The root keeps only the
+  shared tooling (TypeScript, ESLint, Prisma).
+- Root commands still work: `bun run dev`, `npm run build`, `bun test`,
+  `bun run lint`. Type checking is now `bun run typecheck`, which checks the
+  website and the rest of the repo separately.
+- Tailwind scans `packages/shared` explicitly. Goal colors are written there,
+  and Tailwind only looks inside the website's own folder by default.
+
+### 33. Silent misconfiguration: Production settings for the api (PR #68)
+
+**Problem:** three settings would have quietly been wrong on a live server.
+
+- `bun run start` for the api didn't set `NODE_ENV=production`. Libraries
+  switch to their production behavior on it. Better Auth, for example,
+  sends people back to the site instead of showing its built-in error
+  page.
+- The sign-in rate limit counts attempts per client IP address. Every
+  request reaches the api through the website's proxy, and the proxy adds
+  no IP of its own. Better Auth found no trustworthy IP, so **all users
+  shared one bucket**: five failed sign-ins by anyone locked out everyone
+  for a minute.
+- The demo seed creates an account whose password is in this repo. Run
+  against a production database, anyone could sign in to it.
+
+**Decision:**
+
+- The api's `start` script sets `NODE_ENV=production`.
+- `CLIENT_IP_HEADER` names the header the hosting provider's edge sets
+  with the visitor's real IP (`x-real-ip` on Railway, `fly-client-ip` on
+  Fly). The edge overwrites it, so a visitor can't fake it. With it set,
+  each IP gets its own limit.
+- The seed script refuses to run with `NODE_ENV=production`.
+
 ---
 
 ## How data is stored
@@ -551,7 +595,9 @@ Postgres 16, started with `docker compose up -d` (port 5432). Demo data:
    Each user's "today" follows their own time zone. **DONE** (PR #60).
    How the website loads and changes goals now lives in one `useGoals()`
    hook. **DONE** (PR #62).
-   The UI overhaul for phone, tablet and desktop is in review (PR #65).
+   The UI overhaul for phone, tablet and desktop. **DONE** (PR #65).
+   Getting ready for a first deploy: the website moves into `apps/web`
+   (PR #67), Docker images, production settings. **IN PROGRESS.**
 4. Payments with Stripe (after launch).
 5. Installable app that works offline (PWA). Changes made offline are stored
    in the browser and sent when back online. This is when the browser starts

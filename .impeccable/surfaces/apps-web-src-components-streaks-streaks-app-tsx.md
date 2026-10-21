@@ -1,8 +1,8 @@
 ---
 version: 1
-slug: "src-components-streaks-streaks-app-tsx"
-primary_target: "src/components/streaks/streaks-app.tsx"
-related_targets: ["src/app/sign-in/page.tsx","src/app/sign-up/page.tsx"]
+slug: "apps-web-src-components-streaks-streaks-app-tsx"
+primary_target: "apps/web/src/components/streaks/streaks-app.tsx"
+related_targets: ["apps/web/src/app/sign-in/page.tsx","apps/web/src/app/sign-up/page.tsx"]
 ---
 
 # Surface brief: Streakly app shell (goal grid, sign-in)
