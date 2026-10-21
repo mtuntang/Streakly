@@ -564,6 +564,31 @@ package list would be missing them.
   each IP gets its own limit.
 - The seed script refuses to run with `NODE_ENV=production`.
 
+### 34. Deployment: Docker images for the api and the website (PR #69)
+
+**Problem:** to deploy, each app has to run somewhere other than this
+laptop, with the same versions every time.
+
+**Decision:**
+
+- Each app has a Dockerfile (`apps/api/Dockerfile`, `apps/web/Dockerfile`).
+  Both are built from the repo root, because they need the shared package
+  and the one lockfile.
+- The api image applies any new database migrations when it starts, then
+  serves.
+- The website image runs Next.js's standalone server, which ships only the
+  files the server needs.
+- `docker compose --profile app up -d --build` runs both images locally
+  against the dev database, on http://localhost:3100. Plain
+  `docker compose up -d` still starts only Postgres. The local run uses
+  plain http, so its session cookie has no `Secure` flag (https only).
+  Better Auth adds the flag when `BETTER_AUTH_URL` starts with `https://`,
+  as it will on the live site.
+
+**Gotcha:** the website's `API_PROXY_URL` is read at **build** time. Next
+writes the proxy target into the build output, so changing it means
+rebuilding the image. Setting it only when the container starts does nothing.
+
 ---
 
 ## How data is stored
@@ -597,7 +622,8 @@ Postgres 16, started with `docker compose up -d` (port 5432). Demo data:
    hook. **DONE** (PR #62).
    The UI overhaul for phone, tablet and desktop. **DONE** (PR #65).
    Getting ready for a first deploy: the website moves into `apps/web`
-   (PR #67), Docker images, production settings. **IN PROGRESS.**
+   (PR #67), production settings (PR #68), Docker images (PR #69).
+   **IN PROGRESS:** next is picking a host and deploying.
 4. Payments with Stripe (after launch).
 5. Installable app that works offline (PWA). Changes made offline are stored
    in the browser and sent when back online. This is when the browser starts
