@@ -3,12 +3,21 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Phones by screen height. The phone view should show the summary, the
+   front card in full and the ribbon bar without scrolling, so shorter
+   screens drop secondary rows (`short`), tighten the card's spacing
+   (`shorter`) and, on the very smallest, the card's description
+   (`shortest`). Height follows the real viewport, so a browser's toolbars
+   count too. */
+@custom-variant short (@media (max-width: 639.98px) and (max-height: 760px));
+@custom-variant shorter (@media (max-width: 639.98px) and (max-height: 700px));
+@custom-variant shortest (@media (max-width: 639.98px) and (max-height: 600px));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-figtree);
   --font-display: var(--font-figtree);
-  --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -37,6 +46,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-risk: var(--risk);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -79,6 +89,8 @@
   --accent: oklch(0.915 0.018 80);
   --accent-foreground: oklch(0.26 0.018 60);
   --destructive: oklch(0.577 0.245 27.325);
+  /* A weekly quota that can still slip this week: amber-800 / amber-300. */
+  --risk: oklch(0.473 0.137 46.201);
   --border: oklch(0.895 0.014 78);
   --input: oklch(0.86 0.014 78);
   /* The logo's flame: the one accent the UI chrome uses. */
@@ -89,6 +101,24 @@
   --flame-lo: oklch(0.56 0.19 36);
   --flame-hi: oklch(0.66 0.17 62);
   --card-shadow: 0 1px 2px oklch(0.3 0.03 60 / 0.05), 0 12px 32px -16px oklch(0.3 0.04 60 / 0.22);
+}
+
+
+/* Goal colors by day: one darker band for done marks (heatmap cells,
+   ribbon pills, dots), so a done day stands out at least 3:1 from an
+   empty one and from the white card. Tailwind's 500s measured 1.4-1.8:1
+   against the empty cells for lime, amber, teal, green and sky. Empty
+   cells are a light wash of the text color, quiet on purpose. */
+:root {
+  --cell-empty: oklch(0.2 0.02 60 / 8%);
+  --goal-emerald: oklch(0.59 0.13 163);
+  --goal-rose: oklch(0.6 0.17 14);
+  --goal-amber: oklch(0.61 0.14 70);
+  --goal-orange: oklch(0.62 0.16 48);
+  --goal-teal: oklch(0.6 0.1 195);
+  --goal-violet: oklch(0.58 0.17 296);
+  --goal-pink: oklch(0.61 0.17 355);
+  --goal-lime: oklch(0.59 0.15 130);
 }
 
 .dark {
@@ -111,6 +141,7 @@
   --accent: oklch(0.3 0.032 265);
   --accent-foreground: oklch(0.94 0.008 265);
   --destructive: oklch(0.7 0.16 22);
+  --risk: oklch(0.879 0.169 91.605);
   --border: oklch(0.94 0.02 265 / 8%);
   --input: oklch(0.94 0.02 265 / 14%);
   --brand: oklch(0.78 0.12 58);
@@ -145,6 +176,8 @@
   }
   body {
     @apply bg-background text-foreground;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
   ::selection {
     background: var(--brand-soft);
@@ -206,6 +239,21 @@
 .marquee-text .marquee-gap {
   flex: none;
   width: 3em;
+}
+
+/* Touch screens: compact icon buttons keep their size on screen but take
+   a 44px tap, the size primary controls aim for on phones. The invisible
+   hit area grows only on the axes below 44px (each inset percentage reads
+   that axis), so it never shrinks a larger button. */
+@media (pointer: coarse) {
+  .tap-44 {
+    position: relative;
+  }
+  .tap-44::after {
+    content: "";
+    position: absolute;
+    inset: min(0px, calc((100% - 44px) / 2));
+  }
 }
 
 /* ── Surfaces ───────────────────────────────────────────────────────
@@ -329,6 +377,13 @@
       var(--card-shadow);
   }
 }
+/* A finger held on a card, before the drag starts: the card sinks a
+   little over the hold, so the user waits for it instead of moving early.
+   It then lifts (below). */
+[data-slot="card"].card-pressing {
+  scale: 0.97;
+  transition: scale 200ms var(--ease-out);
+}
 /* A card being dragged lifts off the grid: a deeper shadow and a touch
    larger, so it reads as held. */
 [data-slot="card"].card-lifted {
@@ -344,6 +399,128 @@
 }
 [data-slot="card"].card-spotlight {
   animation: card-spotlight 1400ms ease-out;
+}
+
+/* Phones: the cards are a deck that turns like a wheel. They sit in one
+   row that snaps a card to the centre, with the neighbours peeking at the
+   edges, so a swipe deals the next card instead of scrolling a long
+   column. As a card leaves the centre it turns away on the wheel's axis,
+   shrinks and dims. The deck's own perspective sets the eye at its
+   centre, so every card is seen from there. The turn runs on the deck's
+   scroll (no script per frame) and uses `scale`/`rotate`/`translate`, not
+   `transform`, so it never fights the drag library's transform. Browsers
+   without scroll-driven animation get the same deck without the turn. */
+@media (max-width: 639.98px) {
+  .deck {
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    perspective: 1100px;
+  }
+  .deck::-webkit-scrollbar {
+    display: none;
+  }
+}
+@media (max-width: 639.98px) and (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .deck-card {
+      animation: deck-wheel linear both;
+      animation-timeline: view(inline);
+    }
+    /* A held card leaves the wheel so its lift reads. */
+    .deck-card.card-lifted {
+      animation: none;
+    }
+    .wheel-item {
+      animation: ribbon-wheel linear both;
+      animation-timeline: view(inline);
+    }
+    .is-held .wheel-item {
+      animation: none;
+    }
+  }
+}
+/* `from` is a card coming in on the right, `to` one leaving on the left:
+   each turns its outer edge away, and slides toward the centre so its edge
+   still peeks into view and says "swipe". */
+@keyframes deck-wheel {
+  from {
+    scale: 0.88;
+    rotate: y 32deg;
+    translate: -10% 0;
+    opacity: 0.5;
+  }
+  50% {
+    scale: 1;
+    rotate: y 0deg;
+    translate: 0 0;
+    opacity: 1;
+  }
+  to {
+    scale: 0.88;
+    rotate: y -32deg;
+    translate: 10% 0;
+    opacity: 0.5;
+  }
+}
+
+/* The phone ribbon is a scroll wheel: pills turn and fade as they leave
+   the lens in the middle, and the wheel's ends fade out. While one row is
+   being driven by the other, it stops snapping so it can sit between
+   items mid-swipe (see useLinkedScroll). */
+.ribbon-wheel {
+  mask-image: linear-gradient(to right, transparent, black 22%, black 78%, transparent);
+}
+.is-scroll-following,
+.ribbon-wheel.is-reordering {
+  scroll-snap-type: none !important;
+}
+@keyframes ribbon-wheel {
+  from {
+    transform: perspective(160px) rotateY(55deg) scale(0.8);
+    opacity: 0.55;
+  }
+  50% {
+    transform: none;
+    opacity: 1;
+  }
+  to {
+    transform: perspective(160px) rotateY(-55deg) scale(0.8);
+    opacity: 0.55;
+  }
+}
+.wheel-lens {
+  background: color-mix(in oklch, var(--foreground) 5%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--foreground) 14%, transparent);
+}
+/* A finger held on a pill swells it over the hold, then the lifted copy
+   takes over above the wheel. */
+.pill-arming .today-pill {
+  height: 0.875rem;
+  transition-duration: 200ms;
+}
+.pill-lifted {
+  transition: rotate 160ms var(--ease-out);
+  animation: pill-lift 280ms var(--ease-out) both;
+}
+/* Rises out of the pill: starts small and low and decelerates into place. */
+@keyframes pill-lift {
+  from {
+    opacity: 0;
+    translate: 0 1.75rem;
+    scale: 0.55;
+  }
+}
+/* On release the chip sinks back and shrinks into its slot as the overlay
+   glides there, so it reads as the pill dropping in. */
+.pill-dropping .pill-lifted {
+  animation: pill-settle 260ms var(--ease-out) forwards;
+}
+@keyframes pill-settle {
+  to {
+    opacity: 0;
+    translate: 0 1.5rem;
+    scale: 0.55;
+  }
 }
 
 /* The logo. Load: the flame ignites from its base on a spring, the core
@@ -563,6 +740,8 @@
     display: none;
   }
   .ribbon-complete .today-pill,
+  .pill-lifted,
+  .pill-dropping .pill-lifted,
   .brand-flame,
   .brand-flame-core,
   .brand-letter,

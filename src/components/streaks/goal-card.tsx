@@ -4,12 +4,13 @@ import * as React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  ArrowLeft,
+  ArrowRight,
   Check,
   ChevronRight,
   Circle,
   CircleAlert,
   Flame,
-  GripVertical,
   History,
   MoreHorizontal,
   Pencil,
@@ -26,6 +27,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -52,17 +54,12 @@ import { cn } from "@/lib/utils";
 import { plural } from "@/lib/plural";
 import { toast } from "@/hooks/use-toast";
 import { useChangeCount } from "@/hooks/use-change-count";
-import { goalStatus, type StatusTone } from "./goal-status";
+import { useSwallowClickAfterDrag } from "@/hooks/use-swallow-click-after-drag";
+import { useIsShortestPhone } from "@/hooks/use-deck-focus";
+import { goalStatus, TONE_TEXT } from "./goal-status";
 import { CHECKIN_EVENT } from "@/components/brand-mark";
 
 /** Status line color per tone: only a risk borrows the warning color. */
-const TONE_TEXT: Record<StatusTone, string> = {
-  done: "text-muted-foreground",
-  due: "text-muted-foreground",
-  rest: "text-muted-foreground",
-  risk: "font-medium text-amber-800 dark:text-amber-300",
-};
-
 interface GoalCardProps {
   goal: GoalDTO;
   onToggleToday: (goal: GoalDTO) => void;
@@ -70,10 +67,15 @@ interface GoalCardProps {
   /** Deletes the goal; rejects on failure so the dialog can stay open. */
   onDelete: (id: string) => Promise<void>;
   onOpenDetail: (goal: GoalDTO) => void;
+  /** Moves the goal one place earlier (-1) or later (1) in the list. */
+  onMove: (id: string, offset: -1 | 1) => void;
+  /** Whether the goal is first or last, so the menu disables a move that can't happen. */
+  isFirst: boolean;
+  isLast: boolean;
 }
 
 /**
- * Renders one goal: its streak, check-in button, and edit/delete menu.
+ * Renders one goal: its streak, check-in button, and edit/move/delete menu.
  * Memoized: the list keeps unchanged goals as the same objects and the
  * handlers keep their identity, so a check-in re-renders only its own card.
  */
@@ -83,35 +85,45 @@ export const GoalCard = React.memo(function GoalCard({
   onEdit,
   onDelete,
   onOpenDetail,
+  onMove,
+  isFirst,
+  isLast,
 }: GoalCardProps) {
   const colorCfg = getColor(goal.color);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
 
   const {
-    attributes,
     listeners,
     setNodeRef,
-    setActivatorNodeRef,
     transform,
     transition,
     isDragging,
   } = useSortable({ id: goal.id });
 
-  // A drag ends with the pointer over the card it moved, so the browser
-  // fires a click on whatever button sat under it. Swallow that one click
-  // so dropping a card never checks it in or opens its history.
-  React.useLayoutEffect(() => {
-    if (!isDragging) return;
-    return () => {
-      const swallow = (e: MouseEvent) => {
-        e.stopPropagation();
-        e.preventDefault();
-      };
-      window.addEventListener("click", swallow, { capture: true, once: true });
-      setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 0);
+  // Dropping a card must never check it in or open its history.
+  useSwallowClickAfterDrag(isDragging);
+
+  // The menu opens on press for a mouse, like any menu. A finger opens it on
+  // the tap instead: the menu library opens on touch-down, so a swipe of
+  // the deck that happened to start on the ⋯ button popped the menu open.
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const touchOpensOnTap = React.useMemo(() => {
+    let touched = false;
+    return {
+      onPointerDown: (e: React.PointerEvent) => {
+        touched = e.pointerType !== "mouse";
+        if (touched) e.preventDefault();
+      },
+      onClick: () => {
+        if (touched) setMenuOpen((open) => !open);
+      },
     };
-  }, [isDragging]);
+  }, []);
+
+  // On the shortest phones the heatmap shows more weeks, which makes its
+  // cells smaller and the grid shorter, so the card fits without scrolling.
+  const heatmapWeeks = useIsShortestPhone() ? 22 : 18;
 
   async function handleDelete() {
     setDeleting(true);
@@ -154,17 +166,18 @@ export const GoalCard = React.memo(function GoalCard({
     <>
       {/* The whole card is the drag surface: a mouse drags after moving
           5px (so clicks on its buttons still land), a finger after a short
-          press (so the page still scrolls). The grip is the keyboard
-          handle and the visible hint. */}
+          press (so the page still scrolls). Keyboard and screen-reader
+          users reorder from the ⋯ menu instead. */}
       <Card
         ref={setNodeRef}
         id={`goal-${goal.id}`}
+        data-goal-id={goal.id}
         style={{
           transform: CSS.Translate.toString(transform),
           transition,
         }}
         className={cn(
-          "group relative cursor-grab touch-manipulation gap-0 overflow-hidden py-0 select-none",
+          "deck-card group relative w-[82vw] shrink-0 cursor-grab touch-manipulation snap-center snap-always gap-0 overflow-hidden py-0 select-none [-webkit-touch-callout:none] sm:w-auto",
           isDragging && "card-lifted z-10 cursor-grabbing",
         )}
         {...listeners}
@@ -172,7 +185,9 @@ export const GoalCard = React.memo(function GoalCard({
         {/* color accent strip */}
         <div className={cn("absolute inset-x-0 top-0 h-1", colorCfg.bg)} />
 
-        <CardContent className="px-5 pt-6 pb-5">
+        {/* Short phones tighten the spacing, never the controls, so the
+            whole card fits above the ribbon bar. */}
+        <CardContent className="px-5 pt-6 pb-5 shorter:pt-4 shorter:pb-3 shortest:pt-3">
           {/* Header */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-3">
@@ -190,7 +205,7 @@ export const GoalCard = React.memo(function GoalCard({
                   {goal.name}
                 </h3>
                 {goal.description ? (
-                  <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">
+                  <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground shortest:hidden">
                     {goal.description}
                   </p>
                 ) : null}
@@ -201,23 +216,14 @@ export const GoalCard = React.memo(function GoalCard({
             </div>
 
             <div className="-mt-1.5 -mr-2 flex shrink-0 items-center">
-              <Button
-                variant="ghost"
-                size="icon"
-                ref={setActivatorNodeRef}
-                className="size-10 cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing sm:size-9"
-                aria-label={`Reorder ${goal.name}: drag the card, or press Space and use the arrow keys`}
-                {...attributes}
-              >
-                <GripVertical className="h-4 w-4" />
-              </Button>
-              <DropdownMenu>
+              <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-10 sm:size-9 text-muted-foreground hover:text-foreground"
+                    className="tap-44 size-10 sm:size-9 text-muted-foreground hover:text-foreground"
                     aria-label={`Actions for ${goal.name}`}
+                    {...touchOpensOnTap}
                   >
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
@@ -227,6 +233,18 @@ export const GoalCard = React.memo(function GoalCard({
                     <Pencil className="mr-2 h-4 w-4" />
                     Edit
                   </DropdownMenuItem>
+                  {/* The card itself drags; these are the same reorder for
+                      keyboard and screen-reader users, or anyone who would
+                      rather not drag. */}
+                  <DropdownMenuItem disabled={isFirst} onClick={() => onMove(goal.id, -1)}>
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Move earlier
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={isLast} onClick={() => onMove(goal.id, 1)}>
+                    <ArrowRight className="mr-2 h-4 w-4" />
+                    Move later
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => setConfirmDelete(true)}
                     className="text-destructive focus:text-destructive"
@@ -240,7 +258,7 @@ export const GoalCard = React.memo(function GoalCard({
           </div>
 
           {/* Streak: the unit is the one the cadence counts in */}
-          <div className="mt-5 flex items-end justify-between gap-3">
+          <div className="mt-5 flex items-end justify-between gap-3 shorter:mt-3 shortest:mt-2">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <Flame
@@ -294,7 +312,7 @@ export const GoalCard = React.memo(function GoalCard({
           </div>
 
           {/* Today toggle; on rest days a voluntary check-in */}
-          <div className="relative mt-4">
+          <div className="relative mt-4 shorter:mt-3">
             {/* Three looks, by what the button asks: due = an edge and label
                 in the goal color, done = a quiet tint of it, rest = dashed
                 and neutral, since nothing is due. */}
@@ -308,7 +326,7 @@ export const GoalCard = React.memo(function GoalCard({
                 buttonStyle.filled
                   ? colorCfg.fillSoft
                   : cardState.kind === "rest"
-                    ? "border border-dashed border-border bg-transparent text-muted-foreground hover:bg-accent dark:bg-transparent"
+                    ? "h-auto min-h-11 border border-dashed border-foreground/50 bg-transparent dark:border-foreground/45 px-4 py-2 whitespace-normal text-muted-foreground hover:bg-accent dark:bg-transparent"
                     : colorCfg.action,
               )}
             >
@@ -321,7 +339,13 @@ export const GoalCard = React.memo(function GoalCard({
                   {cardState.kind === "rest" ? "Checked in on a rest day" : "Completed today"}
                 </>
               ) : cardState.kind === "rest" ? (
-                `Do it anyway (rest day — back ${cardState.nextDayShort})`
+                // Two parts that share a line when they fit and wrap to two
+                // centred lines on narrow cards, so the text never runs into
+                // the dashed edge.
+                <span className="flex flex-wrap items-baseline justify-center gap-x-1.5 leading-tight">
+                  <span>Do it anyway</span>
+                  <span className="text-[13px]">(rest day — back {cardState.nextDayShort})</span>
+                </span>
               ) : (
                 <>
                   <Circle className="h-4 w-4 opacity-70" />
@@ -345,12 +369,12 @@ export const GoalCard = React.memo(function GoalCard({
               everyone, so the grid itself stays out of the tab order. */}
           <div
             onClick={() => onOpenDetail(goal)}
-            className="history-zone mt-4 -mx-2 cursor-pointer rounded-lg px-2 pt-2 transition-colors hover:bg-muted/50"
+            className="history-zone mt-4 -mx-2 shorter:mt-2 shortest:mt-1 cursor-pointer rounded-lg px-2 pt-2 transition-colors hover:bg-muted/50"
           >
             <Heatmap
               dateKeys={dateKeys}
               color={goal.color}
-              weeks={18}
+              weeks={heatmapWeeks}
               fluid
               showMonths={false}
               action={
@@ -364,7 +388,7 @@ export const GoalCard = React.memo(function GoalCard({
                     onOpenDetail(goal);
                   }}
                   className={cn(
-                    "history-btn -mr-1 h-9 gap-1.5 rounded-full bg-card pr-2.5 pl-3 text-xs font-semibold text-foreground shadow-xs ring-1 ring-inset hover:bg-card sm:h-8 dark:bg-card dark:hover:bg-accent",
+                    "history-btn tap-44 -mr-1 h-9 gap-1.5 rounded-full bg-card pr-2.5 pl-3 text-xs font-semibold text-foreground shadow-xs ring-1 ring-inset hover:bg-card sm:h-8 dark:bg-card dark:hover:bg-accent",
                     colorCfg.ring,
                   )}
                   aria-label={`View full history for ${goal.name}`}

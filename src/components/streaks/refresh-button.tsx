@@ -61,7 +61,7 @@ export function RefreshButton({
       <Button
         variant="ghost"
         size="icon"
-        className="size-10 rounded-full sm:size-9"
+        className="tap-44 size-10 rounded-full sm:size-9"
         onClick={handleClick}
         disabled={turning}
         aria-label={turning ? "Refreshing" : "Refresh"}

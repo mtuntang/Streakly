@@ -18,7 +18,7 @@ export function ThemeToggle() {
       variant="ghost"
       size="icon"
       aria-label="Toggle theme"
-      className="size-10 rounded-full sm:size-9"
+      className="tap-44 size-10 rounded-full sm:size-9"
       onClick={() => setTheme(isDark ? "light" : "dark")}
     >
       {mounted && isDark ? (

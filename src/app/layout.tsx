@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
-import { Figtree, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Figtree } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -8,11 +8,6 @@ import { ErrorBoundary } from "@/components/error-boundary";
 // Figtree is the one face for text, headings and numbers.
 const figtree = Figtree({
   variable: "--font-figtree",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
@@ -40,6 +35,16 @@ export const metadata: Metadata = {
   },
 };
 
+// `cover` lets the page reach under a phone's rounded corners and home
+// indicator, so `env(safe-area-inset-*)` reports real values. The phone
+// ribbon bar uses the bottom inset to sit above the home indicator, and the
+// body pads by the side insets so a notch never covers content in landscape.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 /** Renders the html shell: fonts, theme provider, error boundary, and toaster. */
 export default function RootLayout({
   children,
@@ -51,7 +56,7 @@ export default function RootLayout({
     // there; on <body> they were out of scope and the system font won.
     <html
       lang="en"
-      className={`${figtree.variable} ${geistMono.variable}`}
+      className={figtree.variable}
       suppressHydrationWarning
     >
       <body className="antialiased bg-background text-foreground">
