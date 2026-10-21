@@ -26,7 +26,7 @@ import {
 } from "@streakly/shared";
 import { GoalIcon } from "./goal-icon";
 import { Heatmap } from "./heatmap";
-import { goalStatus, type StatusTone } from "./goal-status";
+import { goalStatus, TONE_TEXT } from "./goal-status";
 import { cn } from "@/lib/utils";
 import { plural } from "@/lib/plural";
 
@@ -36,13 +36,6 @@ interface GoalDetailSheetProps {
   onOpenChange: (open: boolean) => void;
   onEdit: (goal: GoalDTO) => void;
 }
-
-const TONE_TEXT: Record<StatusTone, string> = {
-  done: "text-muted-foreground",
-  due: "text-muted-foreground",
-  rest: "text-muted-foreground",
-  risk: "font-medium text-amber-800 dark:text-amber-300",
-};
 
 /**
  * Renders the side sheet with a goal's history. It reads top to bottom
@@ -79,9 +72,18 @@ export const GoalDetailSheet = React.memo(function GoalDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         hideClose
-        className="w-full gap-0 overflow-y-auto px-5 pb-8 sm:max-w-xl sm:px-7"
+        // Opens on the sheet itself rather than on Edit: focus moves into
+        // the sheet for screen readers, and Edit doesn't open with a focus
+        // ring the user never asked for.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          (e.currentTarget as HTMLElement | null)?.focus();
+        }}
+        className="w-full gap-0 overflow-y-auto overscroll-contain outline-none px-5 pb-[max(2rem,env(safe-area-inset-bottom))] sm:max-w-xl sm:px-7"
       >
-        <SheetHeader className="border-b border-border/60 px-0 pt-5 pb-4">
+        {/* On phones the header stays pinned while the history scrolls, so
+            Close and Edit are always one tap away. */}
+        <SheetHeader className="z-10 border-b border-border/60 bg-inherit px-0 pt-5 pb-4 max-sm:sticky max-sm:top-0 max-sm:-mx-5 max-sm:px-5 max-sm:pt-[max(1.25rem,env(safe-area-inset-top))]">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-3">
               <div
@@ -105,12 +107,17 @@ export const GoalDetailSheet = React.memo(function GoalDetailSheet({
                 variant="outline"
                 size="sm"
                 onClick={() => onEdit(goal)}
-                className="gap-1.5"
+                className="tap-44 h-10 gap-1.5 rounded-full px-4 max-[379px]:w-10 max-[379px]:px-0 sm:h-8 sm:px-3"
+                aria-label={`Edit ${goal.name}`}
               >
                 <Pencil className="h-3.5 w-3.5" />
-                Edit
+                {/* Under 380px the label is read out but not shown, so a
+                    long goal name keeps room for two lines, not three. */}
+                <span className="max-[379px]:sr-only" aria-hidden>
+                  Edit
+                </span>
               </Button>
-              <SheetClose className="ring-offset-background focus:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-full border bg-background/80 text-muted-foreground backdrop-blur transition-colors hover:bg-muted hover:text-foreground focus:ring-2 focus:ring-offset-2 focus:outline-hidden">
+              <SheetClose className="tap-44 ring-offset-background focus:ring-ring inline-flex size-10 items-center sm:size-8 justify-center rounded-full border bg-background/80 text-muted-foreground backdrop-blur transition-colors hover:bg-muted hover:text-foreground focus:ring-2 focus:ring-offset-2 focus:outline-hidden">
                 <XIcon className="h-4 w-4" />
                 <span className="sr-only">Close</span>
               </SheetClose>
@@ -181,6 +188,9 @@ export const GoalDetailSheet = React.memo(function GoalDetailSheet({
               weeks={26}
               cellSize={13}
               showMonths
+              // As wide as the grid, so the count line underneath can stay
+              // pinned to the visible left edge across the whole scroll.
+              className="w-max"
             />
           </div>
         </section>

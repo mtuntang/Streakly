@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -14,7 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { GripHorizontal } from "lucide-react";
+import { GripHorizontal, Minus, Plus, X as XIcon } from "lucide-react";
 import {
   CreateGoalSchema,
   DEFAULT_COLOR,
@@ -28,6 +29,7 @@ import {
 } from "@streakly/shared";
 import { GoalIcon } from "./goal-icon";
 import { cn } from "@/lib/utils";
+import { useIsDeck } from "@/hooks/use-deck-focus";
 
 /** Starting values for the cadence pickers when a goal doesn't set them. */
 const DEFAULT_DAYS = [1, 3, 5];
@@ -124,25 +126,53 @@ export const GoalFormDialog = React.memo(function GoalFormDialog({
     }
   }
 
+  // Phones get a bottom sheet: the form scrolls between a fixed header
+  // and fixed buttons, so the title, close and Create stay in reach however
+  // short the screen or however much of it the keyboard takes. Wider
+  // screens keep the centred dialog, which can be dragged by its header.
+  const isPhone = useIsDeck();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent draggable className="sm:max-w-[480px]">
+      <DialogContent
+        draggable={!isPhone}
+        showCloseButton={false}
+        // Phones open on the sheet itself, not on its first button: focus
+        // still moves into the dialog for screen readers, without a focus
+        // ring appearing on Close before the user has done anything.
+        onOpenAutoFocus={(e) => {
+          if (!isPhone) return;
+          e.preventDefault();
+          (e.currentTarget as HTMLElement | null)?.focus();
+        }}
+        className={cn(
+          "outline-none sm:max-w-[480px]",
+          "max-sm:inset-x-0 max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:flex max-sm:max-h-[92dvh] max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:flex-col max-sm:gap-0 max-sm:rounded-none max-sm:rounded-t-[1.5rem] max-sm:border-x-0 max-sm:border-b-0 max-sm:p-0",
+          "max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100 max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=closed]:slide-out-to-bottom max-sm:duration-300",
+        )}
+      >
         <DialogHeader
-          data-dialog-drag-handle
-          className="cursor-move select-none"
+          data-dialog-drag-handle={isPhone ? undefined : true}
+          className="relative flex-row items-start justify-between gap-3 text-left sm:cursor-move sm:select-none max-sm:border-b max-sm:border-border/60 max-sm:px-5 max-sm:pt-5 max-sm:pb-4"
         >
-          <DialogTitle>{isEdit ? "Edit goal" : "New goal"}</DialogTitle>
-          <DialogDescription>
-            {isEdit
-              ? "Update the details of your habit."
-              : "Create a new habit to track."}
-          </DialogDescription>
-          <span className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 text-muted-foreground/40">
+          <div className="grid min-w-0 gap-1.5">
+            <DialogTitle>{isEdit ? "Edit goal" : "New goal"}</DialogTitle>
+            <DialogDescription>
+              {isEdit
+                ? "Update the details of your habit."
+                : "Create a new habit to track."}
+            </DialogDescription>
+          </div>
+          <DialogClose className="tap-44 -mt-1.5 -mr-1.5 inline-flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none sm:size-9">
+            <XIcon className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </DialogClose>
+          <span className="pointer-events-none absolute -top-3 left-1/2 hidden -translate-x-1/2 text-muted-foreground/40 sm:block">
             <GripHorizontal className="h-4 w-4" />
           </span>
         </DialogHeader>
 
-        <div className="grid gap-4 py-2">
+        <div className="grid gap-5 py-2 max-sm:min-h-0 max-sm:flex-1 max-sm:overflow-y-auto max-sm:overscroll-contain max-sm:px-5 max-sm:py-5">
           <div className="grid gap-2">
             <Label htmlFor="goal-name">Name</Label>
             <Input
@@ -151,7 +181,11 @@ export const GoalFormDialog = React.memo(function GoalFormDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={80}
-              autoFocus
+              // On phones the keyboard would cover half the form before the
+              // user has seen it; they tap the field when ready.
+              autoFocus={!isPhone}
+              enterKeyHint="next"
+              className="max-sm:h-11 max-sm:text-base"
             />
           </div>
 
@@ -164,12 +198,15 @@ export const GoalFormDialog = React.memo(function GoalFormDialog({
               onChange={(e) => setDescription(e.target.value)}
               maxLength={280}
               rows={2}
+              className="max-sm:text-base"
             />
           </div>
 
-          <div className="grid gap-2">
-            <Label>Color</Label>
-            <div className="flex flex-wrap gap-2">
+          <fieldset className="grid gap-2">
+            <legend className="mb-2 text-sm leading-none font-medium">Color</legend>
+            {/* One row of eight at every width: each swatch takes an equal
+                share, capped at 40px. */}
+            <div className="grid grid-cols-8 gap-2">
               {GOAL_COLORS.map((c) => (
                 <button
                   key={c.key}
@@ -178,20 +215,22 @@ export const GoalFormDialog = React.memo(function GoalFormDialog({
                   aria-label={c.label}
                   aria-pressed={color === c.key}
                   className={cn(
-                    "h-8 w-8 rounded-full transition-transform",
+                    "aspect-square w-full max-w-10 justify-self-center rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                     c.bg,
                     color === c.key
-                      ? "ring-2 ring-offset-2 ring-offset-background ring-foreground scale-110"
+                      ? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
                       : "hover:scale-110",
                   )}
                 />
               ))}
             </div>
-          </div>
+          </fieldset>
 
-          <div className="grid gap-2">
-            <Label>Icon</Label>
-            <div className="grid grid-cols-9 gap-1.5">
+          <fieldset className="grid gap-2">
+            <legend className="mb-2 text-sm leading-none font-medium">Icon</legend>
+            {/* As many 44px columns as fit (seven on most phones, nine in
+                the dialog), so the buttons never overlap. */}
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(2.75rem,1fr))] gap-1.5 sm:grid-cols-9">
               {GOAL_ICONS.map((name) => (
                 <button
                   key={name}
@@ -200,21 +239,21 @@ export const GoalFormDialog = React.memo(function GoalFormDialog({
                   aria-label={name}
                   aria-pressed={icon === name}
                   className={cn(
-                    "flex h-9 w-9 items-center justify-center rounded-md border transition-colors",
+                    "flex aspect-square items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-9 sm:w-9 sm:rounded-md",
                     icon === name
                       ? "border-foreground bg-accent text-foreground"
                       : "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
                   )}
                 >
-                  <GoalIcon name={name} className="h-4 w-4" />
+                  <GoalIcon name={name} className="h-[18px] w-[18px] sm:h-4 sm:w-4" />
                 </button>
               ))}
             </div>
-          </div>
+          </fieldset>
 
-          <div className="grid gap-2">
-            <Label>Cadence</Label>
-            <div className="flex rounded-lg border border-border p-1">
+          <fieldset className="grid gap-2">
+            <legend className="mb-2 text-sm leading-none font-medium">Cadence</legend>
+            <div className="grid grid-cols-3 gap-1 rounded-xl border border-border p-1">
               {(
                 [
                   ["daily", "Every day"],
@@ -228,7 +267,7 @@ export const GoalFormDialog = React.memo(function GoalFormDialog({
                   onClick={() => setMode(m)}
                   aria-pressed={mode === m}
                   className={cn(
-                    "flex-1 rounded-md px-2 py-1.5 text-sm transition-colors",
+                    "min-h-11 rounded-lg px-1.5 text-sm leading-tight text-balance transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-9",
                     mode === m
                       ? "bg-accent font-medium text-foreground"
                       : "text-muted-foreground hover:bg-accent/50",
@@ -240,7 +279,7 @@ export const GoalFormDialog = React.memo(function GoalFormDialog({
             </div>
 
             {mode === "weekdays" && (
-              <div className="mt-1 flex flex-wrap gap-1.5">
+              <div className="mt-1 grid grid-cols-7 gap-1.5">
                 {[0, 1, 2, 3, 4, 5, 6].map((d) => (
                   <button
                     key={d}
@@ -249,7 +288,7 @@ export const GoalFormDialog = React.memo(function GoalFormDialog({
                     aria-label={weekdayShort(d)}
                     aria-pressed={days.includes(d)}
                     className={cn(
-                      "h-9 min-w-9 rounded-md border px-2 text-xs font-medium transition-colors",
+                      "h-11 rounded-lg border text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:rounded-md",
                       days.includes(d)
                         ? "border-foreground bg-accent text-foreground"
                         : "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
@@ -267,39 +306,42 @@ export const GoalFormDialog = React.memo(function GoalFormDialog({
                   type="button"
                   variant="outline"
                   size="icon"
+                  className="size-11 rounded-full sm:size-9"
                   aria-label="Fewer times per week"
                   onClick={() => setTimesPerWeek((t) => Math.max(1, t - 1))}
                   disabled={timesPerWeek <= 1}
                 >
-                  −
+                  <Minus className="h-4 w-4" />
                 </Button>
-                <span className="min-w-16 text-center text-sm font-medium">
+                <span className="min-w-24 text-center text-sm font-medium tabular-nums" aria-live="polite">
                   {timesPerWeek}× per week
                 </span>
                 <Button
                   type="button"
                   variant="outline"
                   size="icon"
+                  className="size-11 rounded-full sm:size-9"
                   aria-label="More times per week"
                   onClick={() => setTimesPerWeek((t) => Math.min(7, t + 1))}
                   disabled={timesPerWeek >= 7}
                 >
-                  +
+                  <Plus className="h-4 w-4" />
                 </Button>
               </div>
             )}
-          </div>
+          </fieldset>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="max-sm:flex-row max-sm:gap-3 max-sm:border-t max-sm:border-border/60 max-sm:px-5 max-sm:pt-3 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]">
           <Button
             variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={saving}
+            className="max-sm:h-11 max-sm:flex-1"
           >
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving} className="max-sm:h-11 max-sm:flex-[2]">
             {saving ? "Saving…" : isEdit ? "Save changes" : "Create goal"}
           </Button>
         </DialogFooter>

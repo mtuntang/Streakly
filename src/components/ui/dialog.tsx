@@ -80,6 +80,8 @@ function DialogContent({
     // Only start dragging from the header (the drag handle), not from form fields.
     const target = e.target as HTMLElement
     if (!target.closest("[data-dialog-drag-handle]")) return
+    // Buttons in the header (close) stay clickable.
+    if (target.closest("button")) return
     if (e.button !== 0) return // left click only
 
     dragState.current = {

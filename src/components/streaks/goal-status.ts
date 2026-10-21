@@ -6,6 +6,14 @@ import type { CardCheckinState, GoalDTO } from "@streakly/shared";
  */
 export type StatusTone = "done" | "due" | "rest" | "risk";
 
+/** Text classes for a status line in each tone. Only a quota at risk stands out. */
+export const TONE_TEXT: Record<StatusTone, string> = {
+  done: "text-muted-foreground",
+  due: "text-muted-foreground",
+  rest: "text-muted-foreground",
+  risk: "font-medium text-risk",
+};
+
 export interface GoalStatus {
   text: string;
   tone: StatusTone;
