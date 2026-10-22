@@ -4,9 +4,21 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { getSession, syncTimeZone } from "@/lib/session";
 
+type SessionUser = NonNullable<Awaited<ReturnType<typeof getSession>>>;
+
+const SessionUserContext = React.createContext<SessionUser | null>(null);
+
+/** The signed-in user. Only components rendered inside AuthGate can call it. */
+export function useSessionUser(): SessionUser {
+  const user = React.useContext(SessionUserContext);
+  if (user === null) throw new Error("useSessionUser must be used inside AuthGate");
+  return user;
+}
+
 /**
  * Checks the session before rendering its children: signed out redirects
- * to /sign-in, signed in renders the children. A transport or contract
+ * to /sign-in, signed in renders the children with the user available
+ * through useSessionUser(). A transport or contract
  * error is not "signed out", so it shows Retry instead of sending the user
  * to the login page.
  */
@@ -15,6 +27,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = React.useState<"checking" | "ok" | "error">(
     "checking",
   );
+  const [user, setUser] = React.useState<SessionUser | null>(null);
   // Bumped by Retry; as an effect dependency it re-runs the check.
   const [attempt, setAttempt] = React.useState(0);
 
@@ -31,7 +44,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         // failure only means the old zone stays for now; it is not a reason
         // to block the app.
         await syncTimeZone(session).catch(() => {});
-        if (alive) setStatus("ok");
+        if (!alive) return;
+        setUser(session);
+        setStatus("ok");
       })
       .catch(() => {
         if (alive) setStatus("error");
@@ -70,5 +85,5 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return <SessionUserContext.Provider value={user}>{children}</SessionUserContext.Provider>;
 }

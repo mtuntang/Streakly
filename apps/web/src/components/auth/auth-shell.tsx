@@ -46,9 +46,9 @@ function BrandHeatmap() {
 }
 
 /**
- * Lays out the sign-in and sign-up pages. Large screens get a brand panel
- * beside the form; small screens get the mark above it, so the form stays
- * the first thing a thumb reaches.
+ * Lays out the signed-out pages: sign-in, sign-up and password reset.
+ * Large screens get a brand panel beside the form; small screens get the
+ * mark above it, so the form stays the first thing a thumb reaches.
  */
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
