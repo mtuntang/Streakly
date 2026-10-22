@@ -5,6 +5,7 @@ import { MIN_PASSWORD_LENGTH, TimeZoneSchema } from "@streakly/shared";
 import { db } from "../db";
 import { assertBootEnv } from "./env-guard";
 import { unauthorized } from "./http";
+import { resetPasswordEmail, sendEmail } from "./mailer";
 
 // Runs before betterAuth() reads the secret and base URL, so a deploy
 // missing either fails here instead of building auth on dev defaults.
@@ -28,6 +29,15 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     minPasswordLength: MIN_PASSWORD_LENGTH,
+    // The email is sent without awaiting it, so a request for a registered
+    // address answers as fast as one for an unknown address. Waiting on
+    // the email provider would reveal which emails have accounts.
+    sendResetPassword: async ({ user, url }) => {
+      sendEmail(resetPasswordEmail(user.email, url)).catch((error) =>
+        console.error("Password reset email failed", error),
+      );
+    },
+    revokeSessionsOnPasswordReset: true,
   },
   // The user's IANA zone decides which civil day "today" is for their
   // streaks. The browser sends it at sign-up and via update-user when it
@@ -74,6 +84,8 @@ export const auth = betterAuth({
     customRules: {
       "/sign-in/email": { window: 60, max: 5 },
       "/sign-up/email": { window: 60, max: 5 },
+      "/change-password": { window: 60, max: 5 },
+      "/request-password-reset": { window: 60, max: 3 },
     },
   },
 });

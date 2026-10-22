@@ -3,7 +3,7 @@
 #   docker compose up -d
 #     Postgres only. The api and website run on the host (bun run dev).
 #
-#   BETTER_AUTH_SECRET=<32+ chars> docker compose --profile app up -d --build
+#   BETTER_AUTH_SECRET=<32+ chars> RESEND_API_KEY=<key> docker compose --profile app up -d --build
 #     Also builds and runs the production images against the same database:
 #     the website on http://localhost:3100 and the api on the internal network.
 
@@ -34,6 +34,10 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
       BETTER_AUTH_URL: http://localhost:3100
       BETTER_AUTH_TRUSTED_ORIGINS: http://localhost:3100
+      # Password reset emails go through Resend. resend.dev's test sender
+      # only delivers to the Resend account's own address.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-Streakly <onboarding@resend.dev>}
     depends_on:
       db:
         condition: service_healthy

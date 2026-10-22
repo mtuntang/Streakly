@@ -7,8 +7,9 @@ export const MIN_SECRET_LENGTH = 32;
  * silently falls back to a well-known dev secret, which makes sessions
  * forgeable by anyone who reads the docs. Without BETTER_AUTH_URL it
  * infers its base URL from the request, which is unsafe behind a proxy
- * and weakens the origin-based CSRF check. An unknown NODE_ENV is not
- * development, so it must present both too.
+ * and weakens the origin-based CSRF check. Without RESEND_API_KEY and
+ * EMAIL_FROM, password reset emails would silently never send. An unknown
+ * NODE_ENV is not development, so it must present all of them too.
  */
 export function assertBootEnv(env: NodeJS.ProcessEnv = process.env): void {
   if (env.NODE_ENV === "development" || env.NODE_ENV === "test") return;
@@ -21,11 +22,13 @@ export function assertBootEnv(env: NodeJS.ProcessEnv = process.env): void {
     );
   }
   if (!env.BETTER_AUTH_URL) problems.push("BETTER_AUTH_URL is missing");
+  if (!env.RESEND_API_KEY) problems.push("RESEND_API_KEY is missing");
+  if (!env.EMAIL_FROM) problems.push("EMAIL_FROM is missing");
   if (problems.length === 0) return;
   const found = env.NODE_ENV === undefined ? "unset" : env.NODE_ENV;
   throw new Error(
     `Refusing to boot with NODE_ENV ${found}: ${problems.join("; ")}. ` +
-      `Set a ${MIN_SECRET_LENGTH}+ character secret and the public base ` +
-      "URL in the deploy environment and restart.",
+      `Set a ${MIN_SECRET_LENGTH}+ character secret, the public base URL ` +
+      "and the email settings in the deploy environment and restart.",
   );
 }

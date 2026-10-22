@@ -589,6 +589,54 @@ laptop, with the same versions every time.
 writes the proxy target into the build output, so changing it means
 rebuilding the image. Setting it only when the container starts does nothing.
 
+### 35. Authentication: Forgot and change password (PR #70)
+
+**Problem:** someone who forgot their password had no way back into their
+account, and nobody could change a password they knew.
+
+**Decision:**
+
+- **Forgot password** emails a link that works once and expires in 1 hour.
+  The link opens the website's reset page, where the person picks a new
+  password. Resetting signs out every device.
+- **Change password** asks for the current password. It keeps this device
+  signed in and signs out all the others.
+- **Emails go through Resend** (`RESEND_API_KEY`, `EMAIL_FROM`). The server
+  refuses to start in production without them, so a reset email can't
+  silently fail to send. In development, the email is printed to the api
+  log instead, so you can open the link locally.
+- A reset request gets the **same answer whether or not the email has an
+  account**, and the email is sent in the background so the answer is
+  just as fast either way. Otherwise the form would reveal who has an
+  account.
+- Tighter rate limits: 3 reset requests and 5 password changes per minute.
+
+**Gotcha:** a second reset request for the same person used to fail. The
+database required every stored token value to be unique, and a reset
+token stores the user's id as its value. That rule is gone.
+
+### 36. Authentication: Password screens on the website (PR #71)
+
+**Problem:** the server could reset and change passwords (decision 35), but
+the website had no screens for it.
+
+**Decision:**
+
+- **Sign-in** has a "Forgot password?" link on the password row.
+- **Forgot password** asks for an email, then says where the link went
+  "if an account uses" that address, without confirming that one exists.
+  It offers to send another link.
+- **The reset page** asks for one new password, with a show/hide button
+  instead of a second "confirm" box. A used or expired link shows "This
+  link has expired" with a button to get a new one. After saving, the
+  sign-in page confirms the change.
+- **The header's sign-out button became an account menu**: who is signed
+  in, "Change password" and "Sign out". The header keeps the same number
+  of buttons on a phone.
+- **The account page** shows who is signed in and has the change-password
+  form. It warns that other devices will be signed out, and tells people
+  who forgot their current password how to reset it instead.
+
 ---
 
 ## How data is stored
@@ -624,6 +672,7 @@ Postgres 16, started with `docker compose up -d` (port 5432). Demo data:
    Getting ready for a first deploy: the website moves into `apps/web`
    (PR #67), production settings (PR #68), Docker images (PR #69).
    **IN PROGRESS:** next is picking a host and deploying.
+   Forgot and change password (PR #70 server, PR #71 website).
 4. Payments with Stripe (after launch).
 5. Installable app that works offline (PWA). Changes made offline are stored
    in the browser and sent when back online. This is when the browser starts

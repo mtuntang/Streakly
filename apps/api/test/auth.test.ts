@@ -207,13 +207,122 @@ describe("auth api", () => {
     expect(user?.timezone).toBe("Europe/London");
   });
 
-  it("credential endpoints get the custom 5-per-minute rate limit", async () => {
+  it("credential endpoints get the custom rate limits", async () => {
     // The limiter itself is off under test; this pins the config, because a
     // misnamed option key is silently ignored by Better Auth.
     const { auth } = await import("../src/lib/auth");
     expect(auth.options.rateLimit?.customRules).toEqual({
       "/sign-in/email": { window: 60, max: 5 },
       "/sign-up/email": { window: 60, max: 5 },
+      "/change-password": { window: 60, max: 5 },
+      "/request-password-reset": { window: 60, max: 3 },
     });
+  });
+
+  // ── Forgot and change password ────────────────────────────────────────
+  const WEB = "http://localhost:3000";
+  const post = (path: string, body: Record<string, unknown>, cookie?: string) =>
+    app.request(`/api/auth${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: WEB,
+        ...(cookie ? { cookie } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+  const sessionEmail = async (cookie: string) => {
+    const res = await app.request("/api/auth/get-session", { headers: { cookie } });
+    return ((await res.json()) as { user?: { email: string } } | null)?.user?.email ?? null;
+  };
+  const signInAs = (email: string, password: string) =>
+    post("/sign-in/email", { email, password });
+  const requestReset = (email: string) =>
+    post("/request-password-reset", { email, redirectTo: `${WEB}/reset-password` });
+  /** The user's reset tokens, newest first, read from the database (the email itself is not captured). */
+  const resetTokenFor = async (email: string) => {
+    const { db } = await import("../src/db");
+    const user = await db.user.findUniqueOrThrow({ where: { email } });
+    const rows = await db.verification.findMany({
+      where: { value: user.id, identifier: { startsWith: "reset-password:" } },
+      orderBy: { createdAt: "desc" },
+    });
+    return rows.map((r) => r.identifier.slice("reset-password:".length));
+  };
+
+  it("a reset request answers the same for known and unknown emails", async () => {
+    await signUpAs("forgot@test.dev", {});
+    const known = await requestReset("forgot@test.dev");
+    const unknown = await requestReset("nobody@test.dev");
+    expect(known.status).toBe(200);
+    expect(unknown.status).toBe(200);
+    expect(await known.json()).toEqual(await unknown.json());
+    expect(await resetTokenFor("forgot@test.dev")).toHaveLength(1);
+  });
+
+  it("a second reset request for the same user also works", async () => {
+    const res = await requestReset("forgot@test.dev");
+    expect(res.status).toBe(200);
+    expect(await resetTokenFor("forgot@test.dev")).toHaveLength(2);
+  });
+
+  it("the emailed link redirects to the web reset page with the token", async () => {
+    const [token] = await resetTokenFor("forgot@test.dev");
+    const callback = encodeURIComponent(`${WEB}/reset-password`);
+    const ok = await app.request(`/api/auth/reset-password/${token}?callbackURL=${callback}`);
+    expect(ok.status).toBe(302);
+    expect(ok.headers.get("location")).toBe(`${WEB}/reset-password?token=${token}`);
+
+    const bad = await app.request(`/api/auth/reset-password/not-a-token?callbackURL=${callback}`);
+    expect(bad.headers.get("location")).toBe(`${WEB}/reset-password?error=INVALID_TOKEN`);
+  });
+
+  it("a reset link may only send people back to a trusted origin", async () => {
+    const res = await post("/request-password-reset", {
+      email: "forgot@test.dev",
+      redirectTo: "https://evil.example/steal",
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("resetting sets the new password, signs out every session, and spends the token", async () => {
+    const before = cookieOf(await signInAs("forgot@test.dev", USER.password));
+    expect(await sessionEmail(before)).toBe("forgot@test.dev");
+    const [token] = await resetTokenFor("forgot@test.dev");
+
+    expect((await post("/reset-password", { token, newPassword: "short" })).status).toBe(400);
+    const res = await post("/reset-password", { token, newPassword: "a-brand-new-password" });
+    expect(res.status).toBe(200);
+
+    expect(await sessionEmail(before)).toBeNull();
+    expect((await signInAs("forgot@test.dev", USER.password)).status).toBe(401);
+    expect((await signInAs("forgot@test.dev", "a-brand-new-password")).status).toBe(200);
+    expect((await post("/reset-password", { token, newPassword: "another-password-1" })).status).toBe(400);
+  });
+
+  it("changing the password needs a session and the current password", async () => {
+    const body = { currentPassword: USER.password, newPassword: "changed-password-1", revokeOtherSessions: true };
+    expect((await post("/change-password", body)).status).toBe(401);
+
+    await signUpAs("change@test.dev", {});
+    const here = cookieOf(await signInAs("change@test.dev", USER.password));
+    const wrong = await post("/change-password", { ...body, currentPassword: "not-my-password" }, here);
+    expect(wrong.status).toBe(400);
+    expect((await post("/change-password", { ...body, newPassword: "short" }, here)).status).toBe(400);
+  });
+
+  it("changing the password keeps this device signed in and signs out the others", async () => {
+    const here = cookieOf(await signInAs("change@test.dev", USER.password));
+    const elsewhere = cookieOf(await signInAs("change@test.dev", USER.password));
+    const res = await post(
+      "/change-password",
+      { currentPassword: USER.password, newPassword: "changed-password-1", revokeOtherSessions: true },
+      here,
+    );
+    expect(res.status).toBe(200);
+
+    expect(await sessionEmail(cookieOf(res))).toBe("change@test.dev");
+    expect(await sessionEmail(elsewhere)).toBeNull();
+    expect((await signInAs("change@test.dev", "changed-password-1")).status).toBe(200);
   });
 });
