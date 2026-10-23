@@ -9,6 +9,9 @@ const FOLLOWING = "is-scroll-following";
 /** How long after the last scroll event a scroll counts as finished. */
 const SETTLE_MS = 140;
 
+/** How long the second row keeps driving after a pause ends. */
+const RESUME_MS = 300;
+
 /**
  * Returns the scroll position that centres each item, in item order.
  * It reads offsetLeft, which ignores transforms, so the wheel and deck
@@ -32,6 +35,11 @@ function centres(scroller: HTMLElement, selector: string): number[] {
  * with snapping turned off, so it can sit between items mid-swipe, then
  * lands exactly on the matching item and snaps again. Items are matched by
  * index, so both rows must list the same goals in the same order.
+ *
+ * While `paused`, each row scrolls on its own: the phone pauses the link
+ * while a pill is held, because the deck then follows the moving card, not
+ * the wheel. On resume the second row (`b`) is the truth: the first is put
+ * on its matching item, and nothing moves the second.
  */
 export function useLinkedScroll(
   aRef: React.RefObject<HTMLElement | null>,
@@ -39,7 +47,18 @@ export function useLinkedScroll(
   bRef: React.RefObject<HTMLElement | null>,
   bItems: string,
   enabled: boolean,
+  paused = false,
 ) {
+  // Read by the listeners, so pausing doesn't rebuild them. `resume` is
+  // set by the listening effect, which owns the drive state it resets.
+  const pausedRef = React.useRef(paused);
+  const resume = React.useRef<(() => void) | null>(null);
+  React.useEffect(() => {
+    const wasPaused = pausedRef.current;
+    pausedRef.current = paused;
+    if (wasPaused && !paused) resume.current?.();
+  }, [paused]);
+
   React.useEffect(() => {
     const a = aRef.current;
     const b = bRef.current;
@@ -64,7 +83,9 @@ export function useLinkedScroll(
 
     const release = () => {
       if (!driver || touching) return;
-      follow();
+      // Paused, the follower has been placed by the caller; moving it to
+      // match the driver would undo that.
+      if (!pausedRef.current) follow();
       other(driver).classList.remove(FOLLOWING);
       driver = null;
     };
@@ -77,6 +98,7 @@ export function useLinkedScroll(
     };
 
     const onScroll = (el: HTMLElement) => () => {
+      if (pausedRef.current) return;
       if (!driver) {
         // The follower's own scroll echoes back after a release; it only
         // takes over if it has really moved away from the matching spot.
@@ -92,6 +114,7 @@ export function useLinkedScroll(
     };
 
     const onTouchStart = (el: HTMLElement) => () => {
+      if (pausedRef.current) return;
       touching = true;
       take(el);
     };
@@ -114,11 +137,29 @@ export function useLinkedScroll(
     window.addEventListener("pointerup", onTouchEnd, { passive: true });
 
     // Start matched: the wheel opens on the card the deck shows.
-    const start = mapScroll(centres(b, bItems), centres(a, aItems), b.scrollLeft);
-    a.scrollLeft = start;
+    const match = () => {
+      a.scrollLeft = mapScroll(centres(b, bItems), centres(a, aItems), b.scrollLeft);
+    };
+    match();
+
+    // After a pause, forget who was driving (a touch that began before the
+    // pause may never have reported its end) and let the second row drive
+    // for a moment: the first is lined up with it, and any glide the first
+    // row still has running is ignored instead of dragging the second row
+    // along. The usual release then lands it exactly.
+    resume.current = () => {
+      clearTimeout(settle);
+      touching = false;
+      if (driver) other(driver).classList.remove(FOLLOWING);
+      driver = null;
+      take(b);
+      follow();
+      settle = setTimeout(release, RESUME_MS);
+    };
 
     return () => {
       clearTimeout(settle);
+      resume.current = null;
       for (const { el, scroll, start } of pairs) {
         el.removeEventListener("scroll", scroll);
         el.removeEventListener("touchstart", start);

@@ -59,6 +59,12 @@ import { useIsShortestPhone } from "@/hooks/use-deck-focus";
 import { goalStatus, TONE_TEXT } from "./goal-status";
 import { CHECKIN_EVENT } from "@/components/brand-mark";
 
+/**
+ * Cards being passed by a dragged card glide aside on the app's ease-out,
+ * the same motion as the ribbon pills, instead of the library's default.
+ */
+const CARD_SHIFT = { duration: 280, easing: "cubic-bezier(0.16, 1, 0.3, 1)" };
+
 /** Status line color per tone: only a risk borrows the warning color. */
 interface GoalCardProps {
   goal: GoalDTO;
@@ -99,7 +105,7 @@ export const GoalCard = React.memo(function GoalCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: goal.id });
+  } = useSortable({ id: goal.id, transition: CARD_SHIFT });
 
   // Dropping a card must never check it in or open its history.
   useSwallowClickAfterDrag(isDragging);

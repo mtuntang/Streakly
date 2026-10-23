@@ -398,6 +398,9 @@
    larger, so it reads as held. */
 [data-slot="card"].card-lifted {
   scale: 1.025;
+  transition:
+    scale 220ms var(--ease-out),
+    box-shadow 220ms var(--ease-out);
   box-shadow:
     0 2px 4px oklch(0.2 0.03 60 / 0.08),
     0 28px 48px -18px oklch(0.2 0.04 60 / 0.38);
@@ -440,6 +443,12 @@
     .deck-card.card-lifted {
       animation: none;
     }
+    /* The held-pill zoom (below) stops the deck turning: the cards slide
+       around the held one, and a turn tied to their place would flip
+       each passing card's tilt in one frame. */
+    .deck.is-reordering .deck-card {
+      animation: none;
+    }
     .wheel-item {
       animation: ribbon-wheel linear both;
       animation-timeline: view(inline);
@@ -447,6 +456,43 @@
     .is-held .wheel-item {
       animation: none;
     }
+  }
+}
+/* While a ribbon pill is held the phone deck zooms out to half size, so
+   the cards before and after the held one come into view and the user can
+   see where it is going. Each card is pulled toward the held one by its
+   distance from it (--deck-offset, set from script) times the space the
+   zoom frees, leaving a 1rem gap at half size. `is-settling` zooms back in
+   before the deck turns again. Reduced motion gets the same zoom, without
+   the glide. */
+@media (max-width: 639.98px) {
+  .deck {
+    --deck-zoom: 1;
+  }
+  .deck.is-reordering {
+    --deck-zoom: 0.5;
+  }
+  .deck.is-reordering.is-settling {
+    --deck-zoom: 1;
+  }
+  .deck.is-reordering .deck-card {
+    scale: var(--deck-zoom);
+    translate: calc(var(--deck-offset, 0) * (var(--deck-zoom) - 1) * (82vw - 0.75rem)) 0;
+  }
+  .deck.is-reordering .deck-card.card-lifted {
+    scale: calc(var(--deck-zoom) * 1.04);
+  }
+  .deck.is-reordering:not(.is-settling) .deck-card:not(.card-lifted) {
+    opacity: 0.75;
+  }
+}
+@media (max-width: 639.98px) and (prefers-reduced-motion: no-preference) {
+  .deck.is-reordering .deck-card {
+    transition:
+      scale 320ms var(--ease-out),
+      translate 280ms var(--ease-out),
+      opacity 320ms var(--ease-out),
+      box-shadow 220ms var(--ease-out);
   }
 }
 /* `from` is a card coming in on the right, `to` one leaving on the left:

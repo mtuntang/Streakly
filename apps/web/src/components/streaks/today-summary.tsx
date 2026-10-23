@@ -6,7 +6,8 @@ import { cn } from "@/lib/utils";
 import { useChangeCount } from "@/hooks/use-change-count";
 import { DECK_QUERY, useDeckFocus } from "@/hooks/use-deck-focus";
 import { prefersReducedMotion } from "@/lib/motion";
-import { TodayRibbon, PhoneRibbonBar } from "./today-ribbon";
+import { moveGoal } from "@/lib/goal-list";
+import { TodayRibbon, PhoneRibbonBar, type ReorderPreview } from "./today-ribbon";
 import { ReorderTip } from "./reorder-tip";
 import { InstallTip } from "@/components/install/install-tip";
 
@@ -63,18 +64,25 @@ function jumpFromWheel(id: string) {
  * quieter row beside it, and what is still due as chips that jump to
  * their card. Each ribbon pill is also a button to its card; on phones it
  * deals that card to the front of the deck, the front card's pill is marked, and
- * (with `onReorder`) the pills reorder the cards.
+ * (with `onReorder`) the pills reorder the cards. While a card or pill is
+ * being moved, the ribbon and the cards show the order a drop would make.
  */
 export function TodaySummary({
   goals,
   greeting,
   onReorder,
+  preview = null,
+  onPreview,
   deckRef,
 }: {
   goals: GoalDTO[];
   greeting: string;
   /** Set on phones, where the ribbon is how cards are reordered. */
   onReorder?: (activeId: string, overId: string) => void;
+  /** A card being dragged on a wider screen; its pill moves along with it. */
+  preview?: ReorderPreview | null;
+  /** Where a held phone pill would land, so its card can move along with it. */
+  onPreview?: (preview: ReorderPreview | null) => void;
   /** The phone card deck: the ribbon marks its front card and turns with it. */
   deckRef: React.RefObject<HTMLElement | null>;
 }) {
@@ -159,6 +167,7 @@ export function TodaySummary({
           done={done}
           onJump={jumpFromWheel}
           onReorder={onReorder}
+          onPreview={onPreview}
           deckRef={deckRef}
           className={cn(finishes > 0 && dayClear && "ribbon-complete")}
           caption={
@@ -173,7 +182,8 @@ export function TodaySummary({
       ) : (
         <TodayRibbon
           key={finishes}
-          goals={goals}
+          goals={(preview && moveGoal(goals, preview.activeId, preview.overId)) || goals}
+          movingId={preview?.activeId ?? null}
           frontId={frontId}
           done={done}
           onJump={jumpToGoal}

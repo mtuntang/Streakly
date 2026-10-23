@@ -9,6 +9,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
   type DragPendingEvent,
   type DragStartEvent,
   type UniqueIdentifier,
@@ -22,6 +23,7 @@ import { ArrowLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TodaySummary } from "./today-summary";
+import type { ReorderPreview } from "./today-ribbon";
 import { RefreshButton } from "./refresh-button";
 import { GoalCard } from "./goal-card";
 import { GoalFormDialog } from "./goal-form-dialog";
@@ -31,6 +33,9 @@ import type { GoalDTO } from "@streakly/shared";
 import { useToast } from "@/hooks/use-toast";
 import { useGoals } from "@/hooks/use-goals";
 import { useIsDeck } from "@/hooks/use-deck-focus";
+import { useFlip } from "@/hooks/use-flip";
+import { moveGoal } from "@/lib/goal-list";
+import { prefersReducedMotion } from "@/lib/motion";
 import { ReorderTip, finishReorderTip } from "./reorder-tip";
 import { GOAL_DRAG_INSTRUCTIONS, goalDragAnnouncements } from "./drag-announcements";
 import { signOut } from "@/lib/session";
@@ -78,6 +83,27 @@ function handleDragAbort({ id }: { id: UniqueIdentifier }) {
   setPressing(id, false);
 }
 
+/** How long the deck takes to zoom back in after a drop (globals.css). */
+const DECK_SETTLE_MS = 340;
+
+/**
+ * Gives every deck card its distance from card `heldId` (-1 = just before
+ * it), which the zoomed-out deck uses to pull the cards toward it. Set on
+ * the elements directly, so a pass re-renders no card.
+ */
+function setDeckOffsets(deck: HTMLElement | null, heldId: string) {
+  if (!deck) return;
+  const cards = Array.from(deck.querySelectorAll<HTMLElement>("[data-goal-id]"));
+  const held = cards.findIndex((c) => c.dataset.goalId === heldId);
+  cards.forEach((card, i) => card.style.setProperty("--deck-offset", String(i - held)));
+}
+
+/** Keeps the same preview object when nothing changed, so React can skip the render. */
+function samePreview(next: ReorderPreview | null) {
+  return (prev: ReorderPreview | null) =>
+    prev?.activeId === next?.activeId && prev?.overId === next?.overId ? prev : next;
+}
+
 /** Swaps the dip for the lift, with a tap of vibration where supported. */
 function handleDragStart({ active, activatorEvent }: DragStartEvent) {
   setPressing(active.id, false);
@@ -121,16 +147,100 @@ export function StreaksApp({ demo = false }: { demo?: boolean }) {
     [goals, detailId],
   );
 
-  // The sortable ids change only when the order or the set of goals does.
-  // A new array on every render would reach every card through dnd-kit's
-  // context and re-render them all on each check-in.
-  const idOrder = goals.map((g) => g.id).join(",");
-  const sortableIds = React.useMemo(() => (idOrder ? idOrder.split(",") : []), [idOrder]);
-
   // The phone deck. The summary tracks which card is in front of it, so a
   // swipe re-renders the summary and its ribbon, not this whole page.
   const deckRef = React.useRef<HTMLDivElement>(null);
   const isDeck = useIsDeck();
+
+  // A reorder in progress: a card dragged on a wider screen, or a pill held
+  // on the phone's wheel. The ribbon (wider screens) or the deck (phones)
+  // shows the order the drop would make, so the pill and the card move
+  // together. The dragged side moves itself: dnd-kit shifts the cards on a
+  // wider screen and the pills on the wheel.
+  const [preview, setPreview] = React.useState<ReorderPreview | null>(null);
+  const handlePreview = React.useCallback(
+    (next: ReorderPreview | null) => setPreview(samePreview(next)),
+    [],
+  );
+  const shownGoals = React.useMemo(
+    () => (isDeck && preview && moveGoal(goals, preview.activeId, preview.overId)) || goals,
+    [goals, isDeck, preview],
+  );
+
+  // The sortable ids change only when the order or the set of goals does.
+  // A new array on every render would reach every card through dnd-kit's
+  // context and re-render them all on each check-in.
+  const idOrder = shownGoals.map((g) => g.id).join(",");
+  const sortableIds = React.useMemo(() => (idOrder ? idOrder.split(",") : []), [idOrder]);
+
+  // On the phone the card of the held pill lifts and comes to the front of
+  // the deck, wherever the pill was picked up. As the pill passes others,
+  // that card holds still in front while the other cards slide around it,
+  // and it stays in front after the drop or after the pill is put back.
+  // The wheel and deck are unlinked meanwhile (see PhoneRibbonBar), so the
+  // wheel turning under the pill doesn't pull the deck away.
+  const movingId = isDeck ? (preview?.activeId ?? null) : null;
+  // The card kept in front: the moving one, and for the render that ends
+  // the move, the one just let go.
+  const frontCard = React.useRef<string | null>(null);
+
+  /** Scrolls the deck so card `id` sits in the middle. */
+  const centreCard = React.useCallback((id: string, smooth: boolean) => {
+    const deck = deckRef.current;
+    const card = document.getElementById(`goal-${id}`);
+    if (!deck || !card) return;
+    deck.scrollTo({
+      left: card.offsetLeft + card.offsetWidth / 2 - deck.clientWidth / 2,
+      behavior: smooth && !prefersReducedMotion() ? "smooth" : "auto",
+    });
+  }, []);
+
+  // Deck cards slide to their new places as a held pill passes them; the
+  // deck re-centres on the held card in the same frame, so it never moves.
+  // The grid is left to dnd-kit, which already moves the cards being passed.
+  useFlip(deckRef, "data-goal-id", idOrder, isDeck, () => {
+    if (!frontCard.current) return;
+    setDeckOffsets(deckRef.current, frontCard.current);
+    centreCard(frontCard.current, false);
+  });
+
+  // Ends the zoom-out after a drop: zooms back in, then lets the deck turn.
+  const settling = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  React.useEffect(() => () => clearTimeout(settling.current), []);
+
+  React.useEffect(() => {
+    if (!movingId) {
+      frontCard.current = null;
+      return;
+    }
+    frontCard.current = movingId;
+    // The lift: the card glides to the front and the deck zooms out around
+    // it, so the cards before and after it are in view (see .is-reordering
+    // in globals.css).
+    const deck = deckRef.current;
+    const card = document.getElementById(`goal-${movingId}`);
+    clearTimeout(settling.current);
+    setDeckOffsets(deck, movingId);
+    centreCard(movingId, true);
+    card?.classList.add("card-lifted");
+    if (deck) {
+      // Two steps: first stop the deck's turn at full size, then zoom out.
+      // Chrome starts no transition on a property whose animation is
+      // removed in the same style change, so the zoom would snap.
+      deck.classList.add("is-reordering", "is-settling");
+      void deck.offsetWidth;
+      deck.classList.remove("is-settling");
+    }
+    return () => {
+      card?.classList.remove("card-lifted");
+      if (!deck) return;
+      deck.classList.add("is-settling");
+      settling.current = setTimeout(
+        () => deck.classList.remove("is-reordering", "is-settling"),
+        prefersReducedMotion() ? 0 : DECK_SETTLE_MS,
+      );
+    };
+  }, [movingId, centreCard]);
 
   // Phones swipe the deck with a finger, so cards don't pick up on touch
   // there; the ribbon's bars reorder instead. Tablets and touch laptops
@@ -193,8 +303,21 @@ export function StreaksApp({ demo = false }: { demo?: boolean }) {
     setDetailOpen(true);
   }, []);
 
+  // Wider screens: the ribbon follows the dragged card. On the phone the
+  // deck is not reordered by card drags (the wheel does that), so no preview.
+  function handleCardDragStart(event: DragStartEvent) {
+    handleDragStart(event);
+    const id = String(event.active.id);
+    if (!isDeck) handlePreview({ activeId: id, overId: id });
+  }
+
+  function handleCardDragOver({ active, over }: DragOverEvent) {
+    if (!isDeck) handlePreview({ activeId: String(active.id), overId: String(over?.id ?? active.id) });
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
+    handlePreview(null);
     if (!over || active.id === over.id) return;
     reorderByDrag(String(active.id), String(over.id));
   }
@@ -270,6 +393,8 @@ export function StreaksApp({ demo = false }: { demo?: boolean }) {
             goals={goals}
             greeting={greeting()}
             onReorder={isDeck ? reorderByDrag : undefined}
+            preview={isDeck ? null : preview}
+            onPreview={handlePreview}
             deckRef={deckRef}
           />
         )}
@@ -299,7 +424,9 @@ export function StreaksApp({ demo = false }: { demo?: boolean }) {
               accessibility={dragAccessibility}
               onDragPending={handleDragPending}
               onDragAbort={handleDragAbort}
-              onDragStart={handleDragStart}
+              onDragStart={handleCardDragStart}
+              onDragOver={handleCardDragOver}
+              onDragCancel={() => handlePreview(null)}
               onDragEnd={handleDragEnd}
             >
               <SortableContext
@@ -313,7 +440,7 @@ export function StreaksApp({ demo = false }: { demo?: boolean }) {
                   ref={deckRef}
                   className="deck relative -mx-4 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-[9vw] pt-3 pb-2 shorter:pt-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:p-0 lg:grid-cols-3"
                 >
-                  {goals.map((goal, i) => (
+                  {shownGoals.map((goal, i) => (
                     <GoalCard
                       key={goal.id}
                       goal={goal}
@@ -323,7 +450,7 @@ export function StreaksApp({ demo = false }: { demo?: boolean }) {
                       onOpenDetail={handleOpenDetail}
                       onMove={move}
                       isFirst={i === 0}
-                      isLast={i === goals.length - 1}
+                      isLast={i === shownGoals.length - 1}
                     />
                   ))}
                 </div>
