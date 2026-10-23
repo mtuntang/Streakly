@@ -81,8 +81,10 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         </p>
       </aside>
 
-      <div className="flex flex-col items-center justify-center px-5 py-12 sm:px-8">
-        <BrandMark className="mb-10 lg:hidden" />
+      {/* A phone on its side has little height, so the padding above the
+          form shrinks and Sign in and the demo stay near the first screen. */}
+      <div className="flex flex-col items-center justify-center px-5 py-12 sm:px-8 [@media(max-height:500px)]:py-6">
+        <BrandMark className="mb-10 lg:hidden [@media(max-height:500px)]:mb-5" />
         <div className="w-full max-w-sm">{children}</div>
       </div>
     </main>

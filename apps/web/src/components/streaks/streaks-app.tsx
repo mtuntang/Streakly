@@ -17,7 +17,8 @@ import {
   SortableContext,
   rectSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Plus } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TodaySummary } from "./today-summary";
@@ -38,6 +39,8 @@ import { BrandMark } from "@/components/brand-mark";
 import { AccountMenu } from "@/components/auth/account-menu";
 import { InstallGuide } from "@/components/install/install-guide";
 import { InstallTip } from "@/components/install/install-tip";
+import { apiGoalsClient } from "@/lib/goals-client";
+import { createDemoGoalsClient } from "@/lib/demo-goals";
 
 // Drag sensor options live outside the component: dnd-kit rebuilds its
 // context whenever an options object is new, and that re-renders every
@@ -81,9 +84,17 @@ function handleDragStart({ active, activatorEvent }: DragStartEvent) {
   buzzForTouch(activatorEvent, 10);
 }
 
-/** Renders the signed-in app: stats, the sortable goal grid, and its dialogs. */
-export function StreaksApp() {
+/**
+ * Renders the app: stats, the sortable goal grid, and its dialogs. Signed
+ * in, the goals come from the api. With `demo`, they are the demo
+ * account's goals kept in memory for this visit: the header marks the
+ * demo, leads back to sign-in instead of the account menu, and drops
+ * Refresh, which has no server to ask.
+ */
+export function StreaksApp({ demo = false }: { demo?: boolean }) {
   const { toast } = useToast();
+  // Created once per visit, so the demo's changes last until the page is left.
+  const [client] = React.useState(() => (demo ? createDemoGoalsClient() : apiGoalsClient));
   const {
     goals,
     loading,
@@ -94,7 +105,7 @@ export function StreaksApp() {
     move,
     saveGoal,
     deleteGoal,
-  } = useGoals();
+  } = useGoals(client);
 
   const [formOpen, setFormOpen] = React.useState(false);
   // Changes on every open, so the form remounts with fresh fields.
@@ -197,14 +208,37 @@ export function StreaksApp() {
           ribbon bar: the deck turns under it on every swipe. */}
       <header className="app-header sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-md max-sm:bg-background/95 max-sm:backdrop-blur-none">
         <div className="mx-auto flex h-16 max-w-6xl short:h-14 shortest:h-12 items-center justify-between gap-3 px-4 sm:px-6">
-          <h1>
-            <BrandMark />
-          </h1>
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            {demo ? (
+              // Back sits where a back button is expected, before the
+              // mark; the label shows once there is room for it.
+              <Button
+                asChild
+                variant="ghost"
+                className="tap-44 -ml-2 h-10 w-10 shrink-0 rounded-full px-0 sm:h-9 sm:w-auto sm:px-3"
+              >
+                <Link href="/sign-in" aria-label="Leave the demo and go back to sign in">
+                  <ArrowLeft className="h-4 w-4" aria-hidden />
+                  <span className="hidden sm:inline" aria-hidden>Sign in</span>
+                </Link>
+              </Button>
+            ) : null}
+            <h1>
+              <BrandMark />
+            </h1>
+            {demo ? (
+              // Under 360px the header has no room left for it; the back
+              // button's name still says this is the demo.
+              <span className="shrink-0 rounded-full bg-brand-soft px-2 py-0.5 text-xs font-semibold max-[359px]:sr-only">
+                Demo<span className="sr-only">: changes are not saved</span>
+              </span>
+            ) : null}
+          </div>
 
           <div className="flex items-center gap-1 sm:gap-2">
-            <RefreshButton refreshing={refreshing} onRefresh={refresh} />
+            {demo ? null : <RefreshButton refreshing={refreshing} onRefresh={refresh} />}
             <ThemeToggle />
-            <AccountMenu onSignOut={handleSignOut} />
+            {demo ? null : <AccountMenu onSignOut={handleSignOut} />}
             {/* Under 380px the label is read out but not shown, so the
                 header's controls still fit on one row at 320px. */}
             <Button
