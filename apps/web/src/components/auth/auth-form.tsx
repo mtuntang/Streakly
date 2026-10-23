@@ -197,6 +197,26 @@ export function AuthForm({
         )}
       </Button>
 
+      {isSignUp ? null : (
+        // A way in without an account: the demo account's goals, kept in
+        // memory for the visit. Outlined, so Sign in stays the primary action.
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden>
+            <span className="h-px flex-1 bg-border" />
+            or
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <Button asChild variant="outline" className="h-11 w-full">
+            <Link href="/demo" aria-describedby="demo-note">
+              Try the demo
+            </Link>
+          </Button>
+          <p id="demo-note" className="text-center text-sm text-muted-foreground text-pretty">
+            Sample goals to try out. Nothing is saved.
+          </p>
+        </div>
+      )}
+
       <p className="text-center text-sm text-muted-foreground">
         {isSignUp ? "Already have an account? " : "New to Streakly? "}
         <Link
