@@ -36,6 +36,8 @@ import { signOut } from "@/lib/session";
 import { buzzForTouch } from "@/lib/haptics";
 import { BrandMark } from "@/components/brand-mark";
 import { AccountMenu } from "@/components/auth/account-menu";
+import { InstallGuide } from "@/components/install/install-guide";
+import { InstallTip } from "@/components/install/install-tip";
 
 // Drag sensor options live outside the component: dnd-kit rebuilds its
 // context whenever an options object is new, and that re-renders every
@@ -244,12 +246,19 @@ export function StreaksApp() {
           <EmptyState onCreate={handleCreate} />
         ) : (
           <>
-            {/* Tablets and other touch screens wider than a phone: say how to
-                move a card, since nothing on it looks draggable. Hidden on
-                phones (the ribbon has its own tip) and with a mouse. */}
-            <ReorderTip className="mb-3 hidden sm:flex [@media(pointer:fine)]:hidden">
-              Press and hold a card until it lifts, then drag it to reorder.
-            </ReorderTip>
+            {/* Tablets and other touch screens wider than a phone: invite
+                adding the app to the Home Screen first, then say how to
+                move a card, since nothing on it looks draggable. One line
+                at a time. Hidden on phones (the ribbon has its own tip)
+                and with a mouse. */}
+            <InstallTip
+              className="mb-3 hidden sm:flex"
+              fallback={
+                <ReorderTip className="mb-3 hidden sm:flex [@media(pointer:fine)]:hidden">
+                  Press and hold a card until it lifts, then drag it to reorder.
+                </ReorderTip>
+              }
+            />
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -304,6 +313,7 @@ export function StreaksApp() {
         onOpenChange={setDetailOpen}
         onEdit={handleEdit}
       />
+      <InstallGuide />
     </div>
   );
 }
