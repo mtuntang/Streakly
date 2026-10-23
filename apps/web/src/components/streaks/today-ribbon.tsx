@@ -16,7 +16,6 @@ import {
   type DragOverEvent,
   type DropAnimation,
   type DragPendingEvent,
-  type Modifier,
   type DragStartEvent,
   type UniqueIdentifier,
 } from "@dnd-kit/core";
@@ -32,6 +31,7 @@ import { buzzForTouch } from "@/lib/haptics";
 import { prefersReducedMotion } from "@/lib/motion";
 import { useSwallowClickAfterDrag } from "@/hooks/use-swallow-click-after-drag";
 import { useLinkedScroll } from "@/hooks/use-linked-scroll";
+import { useFlip } from "@/hooks/use-flip";
 import { GOAL_DRAG_INSTRUCTIONS, goalDragAnnouncements } from "./drag-announcements";
 
 // A finger picks a pill up after a short hold, so a tap still jumps to the
@@ -39,14 +39,6 @@ import { GOAL_DRAG_INSTRUCTIONS, goalDragAnnouncements } from "./drag-announceme
 // because dnd-kit rebuilds its state for new option objects.
 const PILL_TOUCH = { activationConstraint: { delay: 200, tolerance: 8 } };
 const PILL_MOUSE = { activationConstraint: { distance: 4 } };
-
-/**
- * A lifted pill moves at 0.6× the finger's speed, so each slot on the wheel
- * takes about 80px of travel instead of 50 and the user can stop on the
- * one they want.
- */
-const DRAG_GEARING = 0.6;
-const GEARED: Modifier[] = [({ transform }) => ({ ...transform, x: transform.x * DRAG_GEARING })];
 
 /**
  * Turns the wheel slowly when a lifted pill is held near either end:
@@ -60,7 +52,7 @@ const WHEEL_AUTO_SCROLL = { acceleration: 1.5, interval: 16, threshold: { x: 0.1
 const EASE_OUT = "cubic-bezier(0.16, 1, 0.3, 1)";
 
 /** The other pills glide aside to open the slot, rather than snap. */
-const PILL_SHIFT = { duration: 260, easing: EASE_OUT };
+const PILL_SHIFT = { duration: 280, easing: EASE_OUT };
 
 /**
  * On release the lifted chip glides down into its new slot and shrinks into
@@ -83,9 +75,18 @@ const MAX_LEAN = 7;
 /** CSS variable the page pads its bottom by, so the bar never hides content. */
 const BAR_HEIGHT_VAR = "--ribbon-bar-h";
 
+/**
+ * After a drop the wheel glides to the dropped pill (about 300ms); the
+ * wheel and deck link up again once it has arrived.
+ */
+const RELINK_MS = 340;
+
 /** The wheel's items and the deck's cards, matched index for index. */
 const PILL_SELECTOR = "[data-pill-id]";
 const CARD_SELECTOR = "[data-goal-id]";
+
+/** A reorder in progress: goal `activeId` would land in `overId`'s place. */
+export type ReorderPreview = { activeId: string; overId: string };
 
 interface RibbonProps {
   goals: GoalDTO[];
@@ -105,16 +106,36 @@ interface RibbonProps {
  * Renders the today ribbon for tablets and desktops: one pill per goal, in
  * card order, filled in the goal's own color once it is checked. Each pill
  * is a button to its card, with a 24px-tall hit area around the 8px pill.
+ * While a card is dragged (`movingId`), `goals` arrives in the order the
+ * drop would make: the moving goal's pill rises and the pills slide to
+ * their new places as the card passes the others.
  */
-export function TodayRibbon({ goals, frontId, done, onJump, className }: RibbonProps) {
+export function TodayRibbon({
+  goals,
+  frontId,
+  done,
+  onJump,
+  movingId = null,
+  className,
+}: RibbonProps & { movingId?: string | null }) {
+  const rowRef = React.useRef<HTMLDivElement>(null);
+  useFlip(rowRef, "data-pill-id", goals.map((g) => g.id).join(","));
   return (
     <div
-      className={cn("flex gap-1.5", className)}
+      ref={rowRef}
+      className={cn("relative flex gap-1.5", className)}
       role="group"
       aria-label={`Goals done today: ${done} of ${goals.length}`}
     >
       {goals.map((g, i) => (
-        <Pill key={g.id} goal={g} index={i} front={g.id === frontId} onJump={onJump} />
+        <Pill
+          key={g.id}
+          goal={g}
+          index={i}
+          front={g.id === frontId}
+          moving={g.id === movingId}
+          onJump={onJump}
+        />
       ))}
     </div>
   );
@@ -127,7 +148,8 @@ export function TodayRibbon({ goals, frontId, done, onJump, className }: RibbonP
  * swiping the deck turns the wheel, and the pill in the middle is always
  * the card in front. Tapping a pill brings its card to the front. Holding a
  * pill lifts it out of the wheel; sliding it along and letting go moves
- * its card to that place.
+ * its card to that place. While it is held, `onPreview` reports where it
+ * would land, so the deck can show its card moving along with it.
  *
  * It is portalled to the end of the page, so it also comes last in the tab
  * order, matching where it sits on screen. `caption` is the line above the
@@ -139,12 +161,15 @@ export function PhoneRibbonBar({
   done,
   onJump,
   onReorder,
+  onPreview,
   deckRef,
   caption,
   className,
 }: RibbonProps & {
   /** Moves goal `activeId` to the place of `overId`. */
   onReorder: (activeId: string, overId: string) => void;
+  /** Where the held pill would land, or null once it is let go. */
+  onPreview?: (preview: ReorderPreview | null) => void;
   /** The card deck the wheel turns with. */
   deckRef: React.RefObject<HTMLElement | null>;
   caption?: React.ReactNode;
@@ -153,6 +178,10 @@ export function PhoneRibbonBar({
   const ids = React.useMemo(() => goals.map((g) => g.id), [goals]);
   const [movingId, setMovingId] = React.useState<string | null>(null);
   const moving = goals.find((g) => g.id === movingId);
+  // The wheel and deck turn separately from the lift until the wheel has
+  // settled after the drop (see RELINK_MS).
+  const [unlinked, setUnlinked] = React.useState(false);
+  const relink = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const accessibility = React.useMemo(() => {
     const names = new Map(goals.map((g) => [g.id, g.name]));
     return {
@@ -164,7 +193,8 @@ export function PhoneRibbonBar({
   const barRef = React.useRef<HTMLDivElement>(null);
   const wheelRef = React.useRef<HTMLDivElement>(null);
 
-  useLinkedScroll(wheelRef, PILL_SELECTOR, deckRef, CARD_SELECTOR, true);
+  useLinkedScroll(wheelRef, PILL_SELECTOR, deckRef, CARD_SELECTOR, true, unlinked);
+  React.useEffect(() => () => clearTimeout(relink.current), []);
 
   // A tap turns the wheel to that pill, and the deck follows it there. The
   // deck is never scrolled directly here: the wheel would pull it back to
@@ -220,23 +250,26 @@ export function PhoneRibbonBar({
     wheelRef.current?.classList.toggle("is-reordering", on);
   }
 
-  // After a drop the wheel glides to the nearest slot before it snaps
-  // again; switching snapping back on mid-slot would jump it there.
-  function settleWheel() {
+  /** Returns the wheel scroll that puts pill `id` in the lens. */
+  function lensScroll(wheel: HTMLElement, id: UniqueIdentifier): number | null {
+    const pill = wheel.querySelector<HTMLElement>(`[data-pill-id="${id}"]`);
+    return pill ? pill.offsetLeft + pill.offsetWidth / 2 - wheel.clientWidth / 2 : null;
+  }
+
+  // After a drop the wheel glides to the slot the pill landed in (`slotId`
+  // is the pill that held that slot), so the lens shows the card the deck
+  // is showing: the one just moved. Snapping comes back once it arrives;
+  // switching it on mid-slot would jump the wheel. Then the wheel and deck
+  // link up again, with the wheel lined up to the deck (useLinkedScroll).
+  function settleWheel(slotId: UniqueIdentifier) {
     const wheel = wheelRef.current;
-    if (!wheel) return;
-    const centre = wheel.scrollLeft + wheel.clientWidth / 2;
-    let target = wheel.scrollLeft;
-    let best = Infinity;
-    wheel.querySelectorAll<HTMLElement>(PILL_SELECTOR).forEach((pill) => {
-      const mid = pill.offsetLeft + pill.offsetWidth / 2;
-      if (Math.abs(mid - centre) < best) {
-        best = Math.abs(mid - centre);
-        target = mid - wheel.clientWidth / 2;
-      }
-    });
-    wheel.scrollTo({ left: target, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    const left = wheel ? lensScroll(wheel, slotId) : null;
+    if (wheel && left !== null) {
+      wheel.scrollTo({ left, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    }
     window.setTimeout(() => setReordering(false), 320);
+    clearTimeout(relink.current);
+    relink.current = setTimeout(() => setUnlinked(false), RELINK_MS);
   }
 
   // The chip leans into the direction it is moving and rights itself when
@@ -248,6 +281,7 @@ export function PhoneRibbonBar({
     if (chip) chip.style.rotate = `${deg}deg`;
   }
   function handleDragMove({ delta }: DragMoveEvent) {
+    keepChipOnScreen();
     const step = delta.x - lastX.current;
     lastX.current = delta.x;
     lean(Math.max(-MAX_LEAN, Math.min(MAX_LEAN, step * LEAN_PER_PX)));
@@ -259,21 +293,27 @@ export function PhoneRibbonBar({
     lastX.current = 0;
     setArming(active.id, false);
     setReordering(true);
+    clearTimeout(relink.current);
+    setUnlinked(true);
     setMovingId(String(active.id));
+    onPreview?.({ activeId: String(active.id), overId: String(active.id) });
     buzzForTouch(activatorEvent, 10);
   }
 
   // A short tick each time the lifted pill passes a slot, so the user can
-  // feel where it is without watching the wheel under their thumb.
-  function handleDragOver({ over }: DragOverEvent) {
+  // feel where it is without watching the wheel under their thumb. Off the
+  // wheel, the card goes back to its own place.
+  function handleDragOver({ active, over }: DragOverEvent) {
     if (over) navigator.vibrate?.(4);
+    onPreview?.({ activeId: String(active.id), overId: String(over?.id ?? active.id) });
   }
 
   function handleDragEnd({ active, over }: DragEndEvent) {
     clearTimeout(unlean.current);
     lean(0);
-    settleWheel();
+    settleWheel(over?.id ?? active.id);
     setMovingId(null);
+    onPreview?.(null);
     if (over && active.id !== over.id) onReorder(String(active.id), String(over.id));
   }
 
@@ -303,12 +343,13 @@ export function PhoneRibbonBar({
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragMove={handleDragMove}
-        onDragCancel={() => {
+        onDragCancel={({ active }) => {
           clearTimeout(unlean.current);
-          settleWheel();
+          lean(0);
+          settleWheel(active.id);
           setMovingId(null);
+          onPreview?.(null);
         }}
-        modifiers={GEARED}
         autoScroll={WHEEL_AUTO_SCROLL}
         onDragEnd={handleDragEnd}
       >
@@ -361,6 +402,26 @@ export function PhoneRibbonBar({
   return createPortal(bar, document.body);
 }
 
+/** How close the lifted chip may come to the screen's sides. */
+const CHIP_MARGIN = 8;
+
+/**
+ * Keeps the lifted chip's label on screen. The chip is centred over the
+ * finger, so near either side of the wheel a long goal name would run off
+ * the edge; it slides inward just enough to stay whole.
+ */
+function keepChipOnScreen() {
+  const anchor = document.querySelector<HTMLElement>(".chip-anchor");
+  if (!anchor) return;
+  const shift = parseFloat(anchor.style.marginLeft) || 0;
+  const rect = anchor.getBoundingClientRect();
+  const left = rect.left - shift;
+  const right = rect.right - shift;
+  const max = window.innerWidth - CHIP_MARGIN;
+  const next = right > max ? max - right : left < CHIP_MARGIN ? CHIP_MARGIN - left : 0;
+  anchor.style.marginLeft = `${next}px`;
+}
+
 /** Adds or removes the held-finger swell on goal `id`'s wheel pill. */
 function setArming(id: UniqueIdentifier, on: boolean) {
   document.querySelector(`[data-pill-id="${id}"]`)?.classList.toggle("pill-arming", on);
@@ -377,7 +438,9 @@ function LiftedPill({ goal }: { goal: GoalDTO }) {
     <div className="relative h-11 w-11">
       {/* The outer box centres the chip over the pill; the chip inside is
           free to rise, lean and settle without losing its centring. */}
-      <div className="absolute bottom-full left-1/2 mb-3 -translate-x-1/2">
+      {/* It floats above the bar, clear of the "Moving …" line, so the two
+          never overlap. */}
+      <div className="chip-anchor absolute bottom-full left-1/2 mb-11 -translate-x-1/2">
         <div className="pill-lifted flex origin-bottom items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-sm font-medium whitespace-nowrap shadow-lg ring-1 ring-foreground/10">
           <span className={cn("h-2 w-5 rounded-full", color.cellOn)} aria-hidden />
           <span className="max-w-40 truncate">{goal.name}</span>
@@ -391,6 +454,8 @@ interface PillProps {
   goal: GoalDTO;
   index: number;
   front: boolean;
+  /** Its card is being dragged: the pill rises above the row. */
+  moving?: boolean;
   onJump: (id: string) => void;
   /** A 44px-tall hit area, for the thumb-driven phone bar. */
   tall?: boolean;
@@ -425,6 +490,7 @@ function Pill({
   goal,
   index,
   front,
+  moving = false,
   onJump,
   tall = false,
   ref,
@@ -458,7 +524,13 @@ function Pill({
     >
       {/* The wheel tilts this wrapper as it turns; the pill inside keeps
           its own day-cleared animation. */}
-      <span className={cn("flex w-full items-center justify-center", tall && "wheel-item")}>
+      <span
+        className={cn(
+          "flex w-full items-center justify-center",
+          tall ? "wheel-item" : "transition-transform duration-300 ease-out",
+          moving && "-translate-y-1",
+        )}
+      >
         <span
           style={{ "--i": index } as React.CSSProperties}
           className={cn(
@@ -466,7 +538,13 @@ function Pill({
             tall ? (dragging ? "w-4" : "w-8") : "w-full",
             // While held, the pill shrinks into a faint gap: the slot it
             // will drop back into if released here.
-            dragging ? "h-1.5 opacity-30" : front ? "h-3" : "h-2 group-hover/pill:h-2.5",
+            dragging
+              ? "h-1.5 opacity-30"
+              : moving
+                ? "h-3 shadow-md"
+                : front
+                  ? "h-3"
+                  : "h-2 group-hover/pill:h-2.5",
             // Empty pills are outlined at 3:1+ so they stay visible in sunlight.
             goal.stats.doneToday
               ? cn("is-done", getColor(goal.color).cellOn)
