@@ -1,15 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { z } from "zod";
-import {
-  CheckInResponseSchema,
-  GoalDTOSchema,
-  todayKey,
-  type CreateGoalInput,
-  type GoalDTO,
-} from "@streakly/shared";
-import { apiFetch } from "@/lib/api-fetch";
+import { todayKey, type CreateGoalInput, type GoalDTO } from "@streakly/shared";
+import { apiGoalsClient, type GoalsClient } from "@/lib/goals-client";
 import { useToast } from "@/hooks/use-toast";
 import {
   moveGoal,
@@ -21,50 +14,17 @@ import {
   upsertGoal,
 } from "@/lib/goal-list";
 
-const GoalListSchema = z.array(GoalDTOSchema);
-const OkSchema = z.object({ ok: z.literal(true) });
-
 /**
- * Calls a data endpoint and returns its body checked against `schema`.
- * A non-2xx answer throws with the api's error message; a 2xx answer with
- * the wrong shape throws too, so callers never render a half-valid goal.
- */
-async function requestJson<T>(
-  url: string,
-  schema: z.ZodType<T>,
-  init?: RequestInit,
-): Promise<T> {
-  const res = await apiFetch(url, init);
-  const body: unknown = await res.json().catch(() => null);
-  if (!res.ok) {
-    const message = (body as { error?: unknown } | null)?.error;
-    throw new Error(
-      typeof message === "string" ? message : `Server responded with ${res.status}`,
-    );
-  }
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) throw new Error("Unexpected response from the server.");
-  return parsed.data;
-}
-
-/** Request options for a JSON body. */
-function jsonBody(method: string, body: unknown): RequestInit {
-  return {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  };
-}
-
-/**
- * Owns the signed-in user's goal list: loading it, keeping it fresh across
- * midnight, and every change to it (check-in, reorder, save, delete).
- * Components get the list plus one function per action and never call the
- * api themselves, so optimistic updates and their undo live in one place.
+ * Owns the goal list: loading it, keeping it fresh across midnight, and
+ * every change to it (check-in, reorder, save, delete). Components get the
+ * list plus one function per action and never call the api themselves, so
+ * optimistic updates and their undo live in one place. `client` is where
+ * the goals live: the api by default, memory on the demo page. It must
+ * keep its identity across renders.
  * The action functions keep their identity across renders, so memoized
  * goal cards skip re-rendering when only another goal changed.
  */
-export function useGoals() {
+export function useGoals(client: GoalsClient = apiGoalsClient) {
   const { toast } = useToast();
   const [goals, setGoals] = React.useState<GoalDTO[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -94,9 +54,7 @@ export function useGoals() {
       let lastError: Error | null = null;
       for (let attempt = 0; attempt <= retries; attempt++) {
         try {
-          const data = await requestJson("/api/goals", GoalListSchema, {
-            cache: "no-store",
-          });
+          const data = await client.list();
           if (loadId !== latestLoad.current) return true;
           setGoals(data);
           setLoading(false);
@@ -124,7 +82,7 @@ export function useGoals() {
       setRefreshing(false);
       return false;
     },
-    [toast],
+    [client, toast],
   );
 
   React.useEffect(() => {
@@ -171,12 +129,8 @@ export function useGoals() {
     setGoals((prev) => setCheckedOn(prev, goal.id, today, !wasDone));
 
     try {
-      const data = await requestJson(
-        `/api/goals/${goal.id}/checkins`,
-        CheckInResponseSchema,
-        jsonBody("POST", { date: today }),
-      );
-      setGoals((prev) => replaceGoal(prev, data.goal));
+      const saved = await client.toggle(goal.id, today);
+      setGoals((prev) => replaceGoal(prev, saved));
     } catch {
       // Undo only this click, on the goal as it is now: restoring the
       // pre-click copy would also wipe anything that arrived since, such as
@@ -186,7 +140,7 @@ export function useGoals() {
     } finally {
       togglesInFlight.current.delete(goal.id);
     }
-  }, [toast]);
+  }, [client, toast]);
 
   /**
    * Moves goal `activeId` to the position of `overId` and saves the order.
@@ -200,11 +154,7 @@ export function useGoals() {
     setGoals(next);
 
     try {
-      const fresh = await requestJson(
-        "/api/goals/reorder",
-        GoalListSchema,
-        jsonBody("PATCH", { ids: next.map((g) => g.id) }),
-      );
+      const fresh = await client.reorder(next.map((g) => g.id));
       setGoals(fresh);
     } catch {
       const oldOrder = before.map((g) => g.id);
@@ -215,7 +165,7 @@ export function useGoals() {
         variant: "destructive",
       });
     }
-  }, [toast]);
+  }, [client, toast]);
 
   /**
    * Moves goal `id` one place earlier (-1) or later (1) and saves the order:
@@ -236,20 +186,16 @@ export function useGoals() {
    * show it and stay open.
    */
   const saveGoal = React.useCallback(async (id: string | null, input: CreateGoalInput) => {
-    const saved = await requestJson(
-      id ? `/api/goals/${id}` : "/api/goals",
-      GoalDTOSchema,
-      jsonBody(id ? "PATCH" : "POST", input),
-    );
+    const saved = await client.save(id, input);
     setGoals((prev) => upsertGoal(prev, saved));
     return saved;
-  }, []);
+  }, [client]);
 
   /** Deletes a goal. Throws on failure, so the caller can keep its dialog open. */
   const deleteGoal = React.useCallback(async (id: string) => {
-    await requestJson(`/api/goals/${id}`, OkSchema, { method: "DELETE" });
+    await client.remove(id);
     setGoals((prev) => removeGoal(prev, id));
-  }, []);
+  }, [client]);
 
   return {
     goals,
