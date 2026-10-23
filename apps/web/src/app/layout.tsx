@@ -25,6 +25,14 @@ export const metadata: Metadata = {
   authors: [{ name: "Streakly" }],
   icons: {
     icon: "/favicon.svg",
+    apple: "/icons/apple-touch-icon.png",
+  },
+  // Added to an iPhone's Home Screen, Streakly opens as its own app, under
+  // its own name, with the system status bar above the page.
+  appleWebApp: {
+    capable: true,
+    title: "Streakly",
+    statusBarStyle: "default",
   },
   openGraph: {
     title: "Streakly — Stay consistent on your goals",
@@ -43,6 +51,12 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // The page background, so the browser's and the installed app's bars
+  // blend into the page in either theme.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f9f4ec" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e141f" },
+  ],
 };
 
 /** Renders the html shell: fonts, theme provider, error boundary, and toaster. */
