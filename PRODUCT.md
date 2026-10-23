@@ -6,7 +6,7 @@
 
 web
 
-Streakly is meant to be used on both phones and computers. On a phone, users install it from the browser to their home screen and open it like an app. Desktop users can use it in a browser tab or install it the same way. One responsive web app serves both, as an installable PWA. Installing and offline use are planned and not yet built. A native app (Expo) may come later and would reuse the same API.
+Streakly is meant to be used on both phones and computers. On a phone, users install it from the browser to their home screen and open it like an app. Desktop users can use it in a browser tab or install it the same way. One responsive web app serves both, as an installable PWA. Adding it to a phone's or tablet's Home Screen is built: the app has a manifest and icons, and an animated in-app guide shows the steps for iPhone, iPad and Android. Offline use is planned and not yet built. A native app (Expo) may come later and would reuse the same API.
 
 ## Users
 

@@ -8,6 +8,7 @@ import { DECK_QUERY, useDeckFocus } from "@/hooks/use-deck-focus";
 import { prefersReducedMotion } from "@/lib/motion";
 import { TodayRibbon, PhoneRibbonBar } from "./today-ribbon";
 import { ReorderTip } from "./reorder-tip";
+import { InstallTip } from "@/components/install/install-tip";
 
 /**
  * Returns the best value per streak unit, e.g. "12d · 3w". Weekly goals count
@@ -160,7 +161,14 @@ export function TodaySummary({
           onReorder={onReorder}
           deckRef={deckRef}
           className={cn(finishes > 0 && dayClear && "ribbon-complete")}
-          caption={<ReorderTip className="shortest:text-xs">Hold a bar, lift it out, and slide it to reorder.</ReorderTip>}
+          caption={
+            // The install invitation and the reorder tip share the line
+            // above the pills: one at a time, install first.
+            <InstallTip
+              className="shortest:text-xs"
+              fallback={<ReorderTip className="shortest:text-xs">Hold a bar, lift it out, and slide it to reorder.</ReorderTip>}
+            />
+          }
         />
       ) : (
         <TodayRibbon
