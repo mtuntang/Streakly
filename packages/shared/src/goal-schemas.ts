@@ -25,8 +25,11 @@ export const CreateGoalSchema = z.object({
 export const UpdateGoalSchema = CreateGoalSchema.partial();
 
 /**
- * A "YYYY-MM-DD" key for a day that exists on the calendar. The format check
- * alone lets 2026-02-31 through, and new Date() silently rolls it to March 3.
+ * A "YYYY-MM-DD" key for a day that exists on the calendar, between
+ * 2000-01-01 and 2099-12-31. The format check alone lets 2026-02-31
+ * through, and new Date() silently rolls it to March 3. The range keeps a
+ * check-in to dates a habit tracker can mean; any year from 0000 to 9999
+ * was accepted before.
  */
 export const DateKeySchema = z
   .string()
@@ -34,7 +37,11 @@ export const DateKeySchema = z
   .refine((key) => {
     const day = new Date(`${key}T00:00:00Z`);
     return !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === key;
-  }, "date must be a real calendar day");
+  }, "date must be a real calendar day")
+  .refine(
+    (key) => key >= "2000-01-01" && key <= "2099-12-31",
+    "date must be between 2000-01-01 and 2099-12-31",
+  );
 
 /** Contract for check-in requests — date optional, defaults to today server-side. */
 export const CheckInBodySchema = z.object({

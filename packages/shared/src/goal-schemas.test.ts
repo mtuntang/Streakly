@@ -3,6 +3,7 @@ import type { z } from "zod";
 import {
   CheckInResponseSchema,
   CreateGoalSchema,
+  DateKeySchema,
   GoalDTOSchema,
   UpdateGoalSchema,
 } from "./goal-schemas";
@@ -18,6 +19,19 @@ describe("goal schemas", () => {
   });
   it("an omitted description stays omitted", () => {
     expect("description" in CreateGoalSchema.parse({ name: "x" })).toBe(false);
+  });
+});
+
+describe("DateKeySchema", () => {
+  it("accepts real days from 2000 through 2099", () => {
+    for (const key of ["2000-01-01", "2026-10-28", "2099-12-31"]) {
+      expect(DateKeySchema.safeParse(key).success).toBe(true);
+    }
+  });
+  it("rejects days outside 2000-2099 and days that don't exist", () => {
+    for (const key of ["0001-01-01", "1999-12-31", "2100-01-01", "9999-12-31", "2026-02-31"]) {
+      expect(DateKeySchema.safeParse(key).success).toBe(false);
+    }
   });
 });
 
