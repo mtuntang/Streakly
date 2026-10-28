@@ -38,6 +38,9 @@ services:
       # only delivers to the Resend account's own address.
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-Streakly <onboarding@resend.dev>}
+      # No edge proxy sets a client IP header locally, so every visitor
+      # shares one rate-limit bucket. A real deploy names its edge header.
+      CLIENT_IP_HEADER: none
     depends_on:
       db:
         condition: service_healthy
