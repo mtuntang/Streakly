@@ -4,7 +4,7 @@ import type { z } from "zod";
 /** An error with an HTTP status that the error handler returns verbatim. */
 export class HttpError extends Error {
   constructor(
-    public readonly status: 400 | 401 | 404 | 500,
+    public readonly status: 400 | 401 | 404 | 429 | 500,
     message: string,
   ) {
     super(message);

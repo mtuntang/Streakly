@@ -20,6 +20,7 @@ import {
 } from "../lib/goals";
 import { badRequest, notFound, parseBody } from "../lib/http";
 import { authenticateSession, type AuthEnv } from "../lib/auth";
+import { goalRateLimit } from "../lib/rate-limit";
 
 // ── Handlers ────────────────────────────────────────────────────────────
 // authenticateSession (mounted on both routers below) resolves the session cookie
@@ -124,13 +125,13 @@ async function removeCheckInRoute(c: Context<AuthEnv>) {
 //   goalResource    — scoped to one goal id (mounted under the collection,
 //                     so /reorder is guaranteed to match before /:id)
 const goalsCollection = new Hono<AuthEnv>()
-  .use("*", authenticateSession)
+  .use("*", authenticateSession, goalRateLimit)
   .get("/", listGoals)
   .post("/", createGoalRoute)
   .patch("/reorder", reorderGoalsRoute);
 
 const goalResource = new Hono<AuthEnv>()
-  .use("*", authenticateSession)
+  .use("*", authenticateSession, goalRateLimit)
   .get("/:id", getGoalRoute)
   .patch("/:id", updateGoalRoute)
   .delete("/:id", deleteGoalRoute)
