@@ -143,9 +143,9 @@ built without the current `next.config.ts`.
   follow-up PR, not a config toggle.
 - **Email verification is off.** Anyone can sign up with any address. This
   matters for the parked Google sign-in, not for password auth.
-- **Goal routes have no per-user rate limit.** Auth endpoints do. An
-  authenticated account can hammer reads that each recompute stats. Planned
-  as its own PR.
+- **Goal routes are rate-limited per user in memory** (120 reads and 60
+  writes a minute, `GOALS_READS_PER_MINUTE` / `GOALS_WRITES_PER_MINUTE` to
+  change them). Same per-instance caveat as the auth limiter.
 - **The auth rate limit resets on api restart.** When curl-testing, restart
   the api to clear a full bucket.
 
