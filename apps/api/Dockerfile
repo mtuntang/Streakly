@@ -30,6 +30,11 @@ COPY packages/shared ./packages/shared
 COPY apps/api ./apps/api
 USER bun
 EXPOSE 4000
+# The platform restarts an unhealthy container. Without this the only signal
+# is "process alive", so a wedged api keeps taking traffic. start-period
+# covers the migrate deploy that runs before the server starts.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+  CMD ["bun", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 4000) + '/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
 # Applies pending migrations, then serves. Migrate deploy only runs
 # migrations already committed in prisma/migrations; it never edits schema.
 CMD ["sh", "-c", "bunx prisma migrate deploy && exec bun apps/api/src/index.ts"]
