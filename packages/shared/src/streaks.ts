@@ -124,24 +124,25 @@ export function computeStreaks(
     }
   }
 
-  // --- longest: walk calendar days from first to last check-in. ---
+  // --- longest: walk the check-ins, not the calendar. ---
   // Unscheduled days are transparent: a Mon→Fri weekdays run with Tue/Thu
-  // skipped is ONE run of 3, not three runs of 1.
+  // skipped is ONE run of 3, not three runs of 1. A run breaks only when a
+  // scheduled day between two checked scheduled days went unchecked.
+  // Walking the stored check-ins keeps the cost proportional to their
+  // number; walking every calendar day between the first and the last let a
+  // single very old check-in cost hundreds of thousands of iterations on
+  // every read.
   let longest = 0;
-  if (sorted.length > 0) {
+  {
     let run = 0;
-    let cursor = fromKey(sorted[0]);
-    const end = fromKey(sorted[sorted.length - 1]);
-    while (cursor <= end) {
-      if (scheduled(cursor)) {
-        if (set.has(toKey(cursor))) {
-          run += 1;
-          longest = Math.max(longest, run);
-        } else {
-          run = 0;
-        }
-      }
-      cursor = addDays(cursor, 1);
+    let prev: Date | null = null;
+    for (const key of sorted) {
+      const day = fromKey(key);
+      if (!scheduled(day)) continue;
+      if (prev && missedScheduledDayBetween(prev, day, scheduled)) run = 0;
+      run += 1;
+      longest = Math.max(longest, run);
+      prev = day;
     }
   }
 
@@ -159,6 +160,25 @@ export function computeStreaks(
   const rate30 = scheduledDays > 0 ? Math.round((checkedDays / scheduledDays) * 100) : 0;
 
   return { current, longest, total: sorted.length, doneToday, active, unit: "day", rate30 };
+}
+
+/**
+ * Returns whether a scheduled day falls strictly between two dates.
+ * Every schedule repeats weekly, so seven or more days in between always
+ * include a scheduled day; shorter gaps are checked day by day. That caps
+ * the work per pair of check-ins at seven steps however far apart they are.
+ */
+function missedScheduledDayBetween(
+  from: Date,
+  to: Date,
+  scheduled: (d: Date) => boolean,
+): boolean {
+  const between = differenceInCalendarDays(to, from) - 1;
+  if (between >= 7) return true;
+  for (let i = 1; i <= between; i++) {
+    if (scheduled(addDays(from, i))) return true;
+  }
+  return false;
 }
 
 /** Computes stats for a weekly goal, where the unit is a calendar week (Sunday start). */
