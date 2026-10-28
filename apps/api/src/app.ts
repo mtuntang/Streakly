@@ -1,7 +1,11 @@
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import goalsRoute from "./routes/goals";
 import { authRoute } from "./routes/auth";
-import { HttpError } from "./lib/http";
+import { HttpError, payloadTooLarge } from "./lib/http";
+
+/** Largest request body the api reads. Real goal and auth bodies are under 2 KiB. */
+const MAX_BODY_BYTES = 64 * 1024;
 
 /**
  * The api's Hono app: routes, mount points, and error mapping. Kept out of
@@ -11,6 +15,17 @@ import { HttpError } from "./lib/http";
  */
 export const app = new Hono()
   .basePath("/api")
+  // Bun.serve would otherwise buffer up to 128 MiB before any route or
+  // validation runs.
+  .use(
+    "*",
+    bodyLimit({
+      maxSize: MAX_BODY_BYTES,
+      onError: () => {
+        throw payloadTooLarge();
+      },
+    }),
+  )
   .route("/goals", goalsRoute)
   .route("/auth", authRoute)
   .get("/health", (c) => c.json({ ok: true }))
