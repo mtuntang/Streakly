@@ -9,7 +9,7 @@ import {
   type CreateGoalInput,
   type UpdateGoalInput,
 } from "@streakly/shared";
-import { notFound } from "./http";
+import { badRequest, notFound } from "./http";
 
 type GoalRow = Prisma.GoalGetPayload<{
   include: { checkIns: { select: { date: true } } };
@@ -117,9 +117,13 @@ export async function loadGoal(
   return goal ? toGoalDTO(goal, today) : null;
 }
 
+/** Most goals one user can have. The goal list renders and computes every goal on each read. */
+export const MAX_GOALS_PER_USER = 100;
+
 /**
  * Creates a goal for the user, placed after their existing goals.
- * Color and icon fall back to the shared defaults when omitted.
+ * Color and icon fall back to the shared defaults when omitted. Throws 400
+ * once the user already has MAX_GOALS_PER_USER goals.
  */
 export async function createGoal(
   userId: string,
@@ -130,11 +134,15 @@ export async function createGoal(
   const icon = input.icon ?? DEFAULT_ICON;
 
   // Place new goals at the end of THIS user's current order.
-  const maxOrder = await db.goal.aggregate({
+  const existing = await db.goal.aggregate({
     where: { userId },
     _max: { order: true },
+    _count: true,
   });
-  const nextOrder = (maxOrder._max.order ?? -1) + 1;
+  if (existing._count >= MAX_GOALS_PER_USER) {
+    throw badRequest(`You can have at most ${MAX_GOALS_PER_USER} goals.`);
+  }
+  const nextOrder = (existing._max.order ?? -1) + 1;
 
   const goal = await db.goal.create({
     data: {
