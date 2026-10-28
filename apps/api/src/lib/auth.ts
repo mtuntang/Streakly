@@ -61,14 +61,17 @@ export const auth = betterAuth({
   // the web app's proxy, which forwards the browser's headers unchanged and
   // adds no IP of its own, so only a header set by the host's edge proxy can
   // be trusted. Which header that is depends on the host (x-real-ip on
-  // Railway, fly-client-ip on Fly), so CLIENT_IP_HEADER names it. Unset, all
-  // users share one rate-limit bucket in production.
+  // Railway, fly-client-ip on Fly), so CLIENT_IP_HEADER names it.
+  // Unset, the list is empty rather than undefined: undefined would make
+  // Better Auth fall back to x-forwarded-for, which any client can set to
+  // get a fresh bucket per request. Empty means no IP, so all users share
+  // one rate-limit bucket in production until the header is configured.
   advanced: {
     disableOriginCheck: false,
     ipAddress: {
       ipAddressHeaders: process.env.CLIENT_IP_HEADER
         ? [process.env.CLIENT_IP_HEADER]
-        : undefined,
+        : [],
     },
   },
   // Rate limiting is on everywhere except bun test: a suite makes hundreds
