@@ -27,6 +27,7 @@ type ProbeResult = {
   rateLimitEnabled: boolean;
   ipAddressHeaders: string[] | undefined;
   signInStatuses: number[];
+  verifyPasswordStatus: number;
 };
 let result: ProbeResult;
 
@@ -73,5 +74,9 @@ describe("auth rate limit keying (CLIENT_IP_HEADER unset)", () => {
     // every request claimed a different address.
     expect(result.signInStatuses.slice(0, 5)).toEqual([401, 401, 401, 401, 401]);
     expect(result.signInStatuses[5]).toBe(429);
+  });
+
+  it("verify-password is not served", () => {
+    expect(result.verifyPasswordStatus).toBe(404);
   });
 });

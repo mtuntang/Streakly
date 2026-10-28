@@ -26,11 +26,18 @@ for (let i = 1; i <= 6; i++) {
   signInStatuses.push((await signInWrong(`198.51.100.${i}`)).status);
 }
 
+const verifyPassword = await app.request("/api/auth/verify-password", {
+  method: "POST",
+  headers: { "Content-Type": "application/json", Origin: ORIGIN },
+  body: JSON.stringify({ password: "anything-at-all" }),
+});
+
 await db.$disconnect();
 process.stdout.write(
   JSON.stringify({
     rateLimitEnabled: auth.options.rateLimit?.enabled,
     ipAddressHeaders: auth.options.advanced?.ipAddress?.ipAddressHeaders,
     signInStatuses,
+    verifyPasswordStatus: verifyPassword.status,
   }) + "\n",
 );
