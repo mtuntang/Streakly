@@ -37,6 +37,20 @@ const userToday = (c: Context<AuthEnv>) => zonedToday(c.get("timeZone"));
 const userTodayKey = (c: Context<AuthEnv>) => todayKeyIn(c.get("timeZone"));
 
 /**
+ * How many days past the user's today a check-in may be dated. The stored
+ * zone can trail the device by up to a day after travel, and two days
+ * covers the widest gap between zones (UTC-12 to UTC+14).
+ */
+const MAX_DAYS_AHEAD = 2;
+
+/** Returns the "YYYY-MM-DD" key `days` calendar days after `key`. */
+function addDaysToKey(key: string, days: number): string {
+  const day = new Date(`${key}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + days);
+  return day.toISOString().slice(0, 10);
+}
+
+/**
  * Loads one of the user's goals, or throws 404 when it is missing or foreign.
  * Handlers use it for every response that returns a goal, including the
  * re-read after a write: if the goal was deleted in between, the client gets
@@ -93,13 +107,17 @@ async function deleteGoalRoute(c: Context<AuthEnv>) {
   return c.json({ ok: true });
 }
 
-/** POST /goals/:id/checkins — toggle a check-in (defaults to today). */
+/** POST /goals/:id/checkins — toggle a check-in (defaults to today; at most MAX_DAYS_AHEAD days ahead). */
 async function toggleCheckInRoute(c: Context<AuthEnv>) {
   const userId = c.get("userId");
   const id = c.req.param("id")!;
 
   const { date } = await parseBody(c, CheckInBodySchema);
-  const dateKey = date ?? userTodayKey(c);
+  const today = userTodayKey(c);
+  if (date && date > addDaysToKey(today, MAX_DAYS_AHEAD)) {
+    throw badRequest("date is too far in the future");
+  }
+  const dateKey = date ?? today;
 
   const checked = await toggleCheckIn(userId, id, dateKey);
   return c.json({ checked, goal: await loadGoalOrThrow(c, id) });
