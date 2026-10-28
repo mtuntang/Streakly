@@ -1,7 +1,8 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import type { Context, Next } from "hono";
-import { MIN_PASSWORD_LENGTH, TimeZoneSchema } from "@streakly/shared";
+import { MAX_NAME_LENGTH, MIN_PASSWORD_LENGTH, TimeZoneSchema } from "@streakly/shared";
 import { db } from "../db";
 import { assertBootEnv } from "./env-guard";
 import { unauthorized } from "./http";
@@ -10,6 +11,28 @@ import { resetPasswordEmail, sendEmail } from "./mailer";
 // Runs before betterAuth() reads the secret and base URL, so a deploy
 // missing either fails here instead of building auth on dev defaults.
 assertBootEnv();
+
+/** Longest profile image URL accepted. The web app never sets one. */
+const MAX_IMAGE_URL_LENGTH = 2048;
+
+/**
+ * Rejects oversized profile fields on sign-up and update-user. Better Auth
+ * puts no length limit on the core name and image fields, so without this
+ * a single request can store a name of any size, returned on every
+ * get-session afterwards.
+ */
+const limitProfileFields = createAuthMiddleware(async (ctx) => {
+  if (ctx.path !== "/sign-up/email" && ctx.path !== "/update-user") return;
+  const { name, image } = (ctx.body ?? {}) as { name?: unknown; image?: unknown };
+  if (typeof name === "string" && name.length > MAX_NAME_LENGTH) {
+    throw new APIError("BAD_REQUEST", {
+      message: `Name must be at most ${MAX_NAME_LENGTH} characters.`,
+    });
+  }
+  if (typeof image === "string" && image.length > MAX_IMAGE_URL_LENGTH) {
+    throw new APIError("BAD_REQUEST", { message: "Image URL is too long." });
+  }
+});
 
 /**
  * Auth for the api. Email/password only for now — the account table's
@@ -53,6 +76,7 @@ export const auth = betterAuth({
       },
     },
   },
+  hooks: { before: limitProfileFields },
   // Better Auth skips its origin (CSRF) check under NODE_ENV=test by
   // default. Forcing it on keeps tests exercising the same check that
   // runs in development and production.
