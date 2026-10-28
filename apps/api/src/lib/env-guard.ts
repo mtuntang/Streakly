@@ -8,7 +8,10 @@ export const MIN_SECRET_LENGTH = 32;
  * forgeable by anyone who reads the docs. Without BETTER_AUTH_URL it
  * infers its base URL from the request, which is unsafe behind a proxy
  * and weakens the origin-based CSRF check. Without RESEND_API_KEY and
- * EMAIL_FROM, password reset emails would silently never send. An unknown
+ * EMAIL_FROM, password reset emails would silently never send. Without
+ * CLIENT_IP_HEADER every visitor shares one rate-limit bucket, so five
+ * wrong passwords from anyone lock everyone out of sign-in for a minute;
+ * a deploy with no edge proxy says so with CLIENT_IP_HEADER=none. An unknown
  * NODE_ENV is not development, so it must present all of them too.
  */
 export function assertBootEnv(env: NodeJS.ProcessEnv = process.env): void {
@@ -24,11 +27,13 @@ export function assertBootEnv(env: NodeJS.ProcessEnv = process.env): void {
   if (!env.BETTER_AUTH_URL) problems.push("BETTER_AUTH_URL is missing");
   if (!env.RESEND_API_KEY) problems.push("RESEND_API_KEY is missing");
   if (!env.EMAIL_FROM) problems.push("EMAIL_FROM is missing");
+  if (!env.CLIENT_IP_HEADER) problems.push("CLIENT_IP_HEADER is missing");
   if (problems.length === 0) return;
   const found = env.NODE_ENV === undefined ? "unset" : env.NODE_ENV;
   throw new Error(
     `Refusing to boot with NODE_ENV ${found}: ${problems.join("; ")}. ` +
       `Set a ${MIN_SECRET_LENGTH}+ character secret, the public base URL ` +
-      "and the email settings in the deploy environment and restart.",
+      "the email settings and the client IP header in the deploy " +
+      "environment and restart.",
   );
 }
