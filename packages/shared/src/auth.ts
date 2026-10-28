@@ -5,3 +5,9 @@
  * pointless round-trip.
  */
 export const MIN_PASSWORD_LENGTH = 10;
+
+/**
+ * The longest display name an account may have. The server rejects longer
+ * names on sign-up and profile update; the sign-up field stops typing at it.
+ */
+export const MAX_NAME_LENGTH = 80;
