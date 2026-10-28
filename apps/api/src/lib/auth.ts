@@ -74,6 +74,10 @@ export const auth = betterAuth({
         : [],
     },
   },
+  // Library endpoints the web app never calls. verify-password checks the
+  // account password but no rate-limit rule covers it, so it would let a
+  // stolen session guess the password far faster than sign-in allows.
+  disabledPaths: ["/verify-password", "/update-session"],
   // Rate limiting is on everywhere except bun test: a suite makes hundreds
   // of in-process requests from one IP inside a single window, which would
   // exhaust the limit and fail unrelated tests.
