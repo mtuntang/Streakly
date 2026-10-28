@@ -1,0 +1,98 @@
+# The gates that used to run only on the developer's machine.
+#
+# Four jobs, deliberately separate so a failure says which gate broke:
+# typecheck, lint, unit tests (no database), and the api integration suite
+# (needs Postgres). The integration suite shells out to
+# `docker exec streakly-db-1`, so the db comes up through docker compose with
+# a pinned project name rather than as a service container.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUN_VERSION: 1.4.2
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      # apps/api imports @prisma/client types, so the client must exist before
+      # tsc runs. The install's postinstall hook usually generates it; this
+      # makes the dependency explicit rather than assumed.
+      - run: bunx prisma generate
+      - run: bun run typecheck
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - run: bun test packages apps/web
+
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+
+      # The suite creates and drops its own database on this container.
+      # COMPOSE_PROJECT_NAME pins the container name to streakly-db-1, which
+      # the tests exec into; without it the name follows the checkout folder.
+      - name: Start Postgres
+        run: COMPOSE_PROJECT_NAME=streakly docker compose up -d db
+      - name: Wait for Postgres
+        run: |
+          for i in $(seq 1 30); do
+            if docker exec streakly-db-1 pg_isready -U streakly -d streakly >/dev/null 2>&1; then
+              echo "Postgres ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Postgres did not become ready" >&2
+          docker logs streakly-db-1 >&2
+          exit 1
+
+      # The suite runs with --env-file=../../.env locally. NODE_ENV=test
+      # bypasses the production boot guard, so two dev values are enough.
+      - name: Write .env
+        run: |
+          printf 'DATABASE_URL=postgresql://streakly:streakly@localhost:5432/streakly\n' > .env
+          printf 'BETTER_AUTH_URL=http://localhost:3000\n' >> .env
+
+      - run: bunx prisma generate
+      - name: api tests
+        working-directory: apps/api
+        run: bun test --env-file=../../.env
+
+      - name: Stop Postgres
+        if: always()
+        run: COMPOSE_PROJECT_NAME=streakly docker compose down -v

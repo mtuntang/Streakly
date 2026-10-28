@@ -671,7 +671,10 @@ Postgres 16, started with `docker compose up -d` (port 5432). Demo data:
    The UI overhaul for phone, tablet and desktop. **DONE** (PR #65).
    Getting ready for a first deploy: the website moves into `apps/web`
    (PR #67), production settings (PR #68), Docker images (PR #69).
-   **IN PROGRESS:** next is picking a host and deploying.
+   **IN PROGRESS:** next is picking a host and deploying. The handover
+   checklist lives in `DEPLOY.md` (host requirements, environment
+   variables, first-boot probes, known limits, rollback), and
+   `.env.example` lists every variable with a dev value.
    Forgot and change password (PR #70 server, PR #71 website).
 4. Payments with Stripe (after launch).
 5. Installable app that works offline (PWA). Changes made offline are stored
