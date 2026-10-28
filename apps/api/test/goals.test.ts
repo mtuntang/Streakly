@@ -8,7 +8,7 @@
  * All requests go through the typed test client (test-api.ts) — tests
  * state intent; paths/methods/headers/cookies live in one place.
  */
-import { afterAll, beforeAll, describe, it, expect } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, it, expect } from "bun:test";
 import { execSync } from "node:child_process";
 import path from "node:path";
 
@@ -325,5 +325,78 @@ describe("goals api", () => {
     await api.goals.toggle(goal.id);
     const { goal: after } = await (await api.goals.uncheck(goal.id)).json();
     expect(after.checkIns).toEqual([]);
+  });
+});
+
+// ── Per-user rate limiting ───────────────────────────────────────────────
+// Limits are read from the environment on each request, so a test can lower
+// them without touching the app. Buckets are per user, so these tests use
+// their own accounts and reset the buckets when they are done.
+describe("goal route rate limits", () => {
+  // Their own accounts: buckets are per user, and another describe's users
+  // may already have spent budget by the time this block runs.
+  const READER = { name: "Limit Reader", email: "limit-reader@test.dev", password: "limit-reader-12" };
+  const WRITER = { name: "Limit Writer", email: "limit-writer@test.dev", password: "limit-writer-12" };
+  const OTHER = { name: "Limit Other", email: "limit-other@test.dev", password: "limit-other-12" };
+  const LIMITER = {
+    reads: "GOALS_READS_PER_MINUTE",
+    writes: "GOALS_WRITES_PER_MINUTE",
+  };
+  const saved: Record<string, string | undefined> = {};
+  let reset: () => void;
+
+  beforeAll(async () => {
+    const { resetGoalRateLimits } = await import("../src/lib/rate-limit");
+    reset = resetGoalRateLimits;
+  });
+
+  beforeEach(async () => {
+    for (const name of Object.values(LIMITER)) {
+      saved[name] = process.env[name];
+      delete process.env[name];
+    }
+    reset();
+  });
+
+  afterEach(() => {
+    for (const [name, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    reset();
+  });
+
+  it("returns 429 after the read budget is spent, and the body says how long", async () => {
+    process.env[LIMITER.reads] = "2";
+    const api = createTestApi(app, await cookieFor(READER));
+    expect((await api.goals.list()).status).toBe(200);
+    expect((await api.goals.list()).status).toBe(200);
+    const blocked = await api.goals.list();
+    expect(blocked.status).toBe(429);
+    expect((await blocked.json()).error).toMatch(/try again in \d+s/i);
+  });
+
+  it("counts writes in their own bucket, so writes never block reads", async () => {
+    process.env[LIMITER.writes] = "1";
+    const api = createTestApi(app, await cookieFor(WRITER));
+    expect((await api.goals.create({ name: "first" })).status).toBe(201);
+    expect((await api.goals.create({ name: "second" })).status).toBe(429);
+    // The read bucket is untouched by those writes.
+    expect((await api.goals.list()).status).toBe(200);
+  });
+
+  it("keeps one user's spent budget from blocking another user", async () => {
+    process.env[LIMITER.reads] = "1";
+    const kiri = createTestApi(app, await cookieFor(READER));
+    const pago = createTestApi(app, await cookieFor(OTHER));
+    expect((await kiri.goals.list()).status).toBe(200);
+    expect((await kiri.goals.list()).status).toBe(429);
+    expect((await pago.goals.list()).status).toBe(200);
+  });
+
+  it("anonymous requests get 401 from auth, not 429 from the limiter", async () => {
+    process.env[LIMITER.reads] = "1";
+    const anonymous = await app.request("/api/goals");
+    expect(anonymous.status).toBe(401);
   });
 });
