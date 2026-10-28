@@ -561,7 +561,10 @@ package list would be missing them.
 - `CLIENT_IP_HEADER` names the header the hosting provider's edge sets
   with the visitor's real IP (`x-real-ip` on Railway, `fly-client-ip` on
   Fly). The edge overwrites it, so a visitor can't fake it. With it set,
-  each IP gets its own limit.
+  each IP gets its own limit. The api refuses to boot in production
+  without it; `none` (used by the local compose app profile) means no
+  edge proxy and one shared bucket. Unset or `none`, `X-Forwarded-For`
+  is never read, because any client can set it.
 - The seed script refuses to run with `NODE_ENV=production`.
 
 ### 34. Deployment: Docker images for the api and the website (PR #69)
