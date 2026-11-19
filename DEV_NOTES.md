@@ -610,8 +610,9 @@ account, and nobody could change a password they knew.
   log instead, so you can open the link locally.
 - A reset request gets the **same answer whether or not the email has an
   account**, and the email is sent in the background so the answer is
-  just as fast either way. Otherwise the form would reveal who has an
-  account.
+  just as fast either way. This only keeps the reset form from revealing
+  who has an account: sign-up still does, by refusing a taken email (see
+  "Known limits" in `DEPLOY.md`).
 - Tighter rate limits: 3 reset requests and 5 password changes per minute.
 
 **Gotcha:** a second reset request for the same person used to fail. The
