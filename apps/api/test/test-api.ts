@@ -13,8 +13,16 @@ export function createTestApi(
   app: { request(path: string, init?: RequestInit): Response | Promise<Response> },
   cookie: string,
 ) {
+  // Bodies go out as JSON, the only body type the api reads.
   const req = async (path: string, init: RequestInit = {}) =>
-    await app.request(path, { ...init, headers: { cookie, ...(init.headers ?? {}) } });
+    await app.request(path, {
+      ...init,
+      headers: {
+        cookie,
+        ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
+        ...(init.headers ?? {}),
+      },
+    });
 
   return {
     goals: {
