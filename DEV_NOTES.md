@@ -6,8 +6,23 @@ followed the project.
 
 - Every decision has the same shape: **Problem** (what was wrong or
   needed), **Decision** (what we did), and **Why** (when it isn't obvious).
-- Newest decisions are at the bottom of "Decisions".
+- Newest decisions are at the bottom of "Decisions". Numbers never change,
+  because commits and PRs refer to them.
 - Each heading ends with the PR where it happened, so you can look up the code.
+
+**Contents**
+
+- [The app in one paragraph](#the-app-in-one-paragraph)
+- [Worst bugs we've hit](#worst-bugs-weve-hit): start here to learn what
+  bites in this codebase.
+- [Decisions](#decisions), by theme:
+  - Streak rules and data: 1, 3, 4, 8, 15, 16, 20, 22, 23
+  - Code and workflow: 2, 5, 7, 10, 12, 13, 14, 26, 32, 47
+  - Website behavior: 6, 9, 11, 21, 25, 27, 29, 30, 31, 38, 39, 40, 49
+  - Login and security: 17, 19, 33, 35, 36, 41, 43, 44, 45, 48, 50
+  - Server reliability and deploys: 18, 24, 28, 34, 37, 42, 46
+- [How data is stored](#how-data-is-stored)
+- [Roadmap](#roadmap)
 
 ---
 
@@ -26,6 +41,68 @@ row you kept it up). It is a TypeScript monorepo:
 
 Ground rule: **finish a feature before moving infrastructure around, never in
 the middle of one.**
+
+---
+
+## Worst bugs we've hit
+
+The bugs that did, or could have done, the most damage, worst first. Each
+one points to the decision with the fix. Read these first: they show what
+tends to go wrong here.
+
+1. **The tests wrote into the real dev database** (decision 47). The api
+   tests share one database connection, and it connected to whichever
+   database was configured when the app was first loaded. When a test file
+   that doesn't use the database ran first, the next file's tests used the
+   database in `.env`: on a laptop, that's the dev database, so test
+   accounts and goals landed in real data. It hid because files ran in
+   alphabetical order on Windows, which happened to be safe. On Linux CI
+   the order differed, and only CI's empty database made it fail.
+2. **A check-in could undo itself** (decision 49). Each tap said "flip it".
+   If the server saved a check-in but the reply was lost on a weak
+   connection, the screen rolled back to "not done", and the next tap
+   deleted the real check-in. An earlier bug did the same through dates
+   (decision 22): check-ins came back a day early, so the card said "not
+   done" and a second tap deleted them.
+3. **One old check-in could freeze the server for everyone** (decision 42).
+   The longest-streak math walked every calendar day between the first and
+   last check-in. A check-in dated in year 1 cost about 1.2 seconds of
+   server time on every read of that goal, and the server handles one
+   thing at a time, so every user waited.
+4. **Sign-in rate limits could be dodged, or locked everyone out**
+   (decisions 33, 41). With no trusted IP, all users shared one bucket:
+   five wrong passwords from anyone blocked everyone for a minute. A later
+   bug did the opposite: the server trusted an IP header that any client
+   can set, so an attacker got a fresh limit on every request.
+5. **Two login settings silently did nothing** (decision 19). With no
+   public address set, Better Auth treated every sign-in from the website
+   as a cross-site attack and rejected it. And a misspelled option name
+   (`specialRules` instead of `customRules`) was ignored without an error,
+   so the 5-attempt sign-in limit never applied.
+6. **Every request to one goal ran its checks twice** (decision 48). The
+   sign-in check and the rate limiter were attached to both an outer and
+   an inner router, so each check-in read the session twice and the write
+   limit was half what it said.
+7. **Sign-up tells anyone whether an email has an account** (decision 35).
+   A taken email gets "User already exists". Accepted for now and listed
+   under "Known limits" in `DEPLOY.md`; hiding it needs email
+   verification.
+
+**Traps in how we merge** (decision 13):
+
+- **A check nobody runs can be broken for weeks.** Typecheck failed on
+  `main` (the seed script couldn't find the shared package) until CI first
+  ran it.
+- **Deleting a branch can close a PR for good.** When a merged PR's branch
+  is deleted, a PR built on top of that branch is closed, not moved, and
+  can't be reopened.
+- **A rebase with no conflicts can still break the tests.** One PR renamed
+  a test helper that another PR's new test used. Git saw no conflict; only
+  running the tests did.
+
+**The pattern:** the worst bugs passed on the machine they were written on
+and failed somewhere else: another test order, a weak network, a merge.
+Find them by recreating those conditions on purpose.
 
 ---
 
@@ -97,9 +174,16 @@ doesn't.
 works.
 
 **Decision:** write a failing test, make it pass with the smallest change,
-commit. Before any PR, run: `bunx tsc --noEmit` → `bun run lint` →
-`bun test` → `npm run build` (use npm, not bun, for builds on this Windows
-machine).
+commit. Before any PR, all of these must pass (CI runs the same four as
+separate jobs):
+
+- `bun run typecheck`
+- `bun run lint`
+- `bun test packages apps/web`
+- `cd apps/api && bun run test` (needs Docker with the `streakly-db-1`
+  database running)
+
+When dependencies or build config change, also run `bun run build`.
 
 ### 6. Single source of truth: One helper decides how a goal card looks (PRs #7–#9)
 
@@ -189,6 +273,12 @@ packages, stray copies of shared files, and old template folders.
 - PR descriptions: what changed, plus a checklist of commands to verify it.
 - Cleanup work gets its own PR, never mixed into a feature.
 - After a merge, delete the branch locally and on GitHub.
+- **PRs built on another PR's branch:** before merging the first PR, point
+  the second one at `main` (`gh pr edit <n> --base main`). Deleting the
+  first PR's branch otherwise closes the second PR, and it can't be
+  reopened.
+- **Run the tests after every rebase,** even one with no conflicts. Two PRs
+  can change different lines and still break each other.
 
 ### 14. Environment quirks: Windows quirks (so they don't bite twice)
 
@@ -197,15 +287,17 @@ waste time when forgotten.
 
 **Decision:**
 
-- Build with `npm run build`; use bun for everything else.
+- `bun run build` works in git-bash and cmd.exe alike (PR #80). It used to
+  fail on Windows because the build copied files with `cp -r`.
 - A stuck dev server can keep its port while serving nothing. Stop it by
   port, not by name: find the process id with `netstat`, then
   `MSYS_NO_PATHCONV=1 taskkill /PID <id> /T /F`.
 - Check that a server is up with `curl`, not by reading its log file.
-- To run the production build locally, start the server from
-  `.next/standalone/Documents/Code/Streakly/`. Copy `.next/static` and
-  `public` into that folder first; the build script copies them one level
-  too high for this deep path. Use `node.exe`, not `node`, in git-bash.
+- To run the production build locally: `bun run build`, then
+  `bun run start`, which runs `apps/web/.next/standalone/apps/web/server.js`.
+- Docker Desktop has to be running before the api tests: they reach the
+  database with `docker exec`. Without it, they fail with a misleading
+  handful of errors that have nothing to do with the code.
 
 ### 15. Input validation: Database ids are UUIDs made by Postgres (PR #19)
 
@@ -533,7 +625,7 @@ package list would be missing them.
 - The website is now a workspace package, `apps/web`, next to `apps/api`.
   Each one lists exactly the packages it uses. The root keeps only the
   shared tooling (TypeScript, ESLint, Prisma).
-- Root commands still work: `bun run dev`, `npm run build`, `bun test`,
+- Root commands still work: `bun run dev`, `bun run build`, `bun test`,
   `bun run lint`. Type checking is now `bun run typecheck`, which checks the
   website and the rest of the repo separately.
 - Tailwind scans `packages/shared` explicitly. Goal colors are written there,
@@ -671,13 +763,214 @@ the website had no screens for it.
 - An unknown address answers `{ "error": "Not found." }`, the same shape as
   every other error.
 
-**Gotcha:** the api tests now run with `bun test --env-file=../../.env
---isolate`. Bun shares loaded code between test files, so the database
-connection used whatever database was configured when the app was first
-loaded. A test file that loaded the app without picking a test database
-sent the next file's queries to the main database from `.env`. On CI
-that broke 22 tests; on a laptop it quietly wrote test users into the dev
-database. `--isolate` gives each test file a fresh start.
+**Gotcha:** fixing this PR's CI failure uncovered the worst test bug so
+far: the api tests could write into the dev database. See decision 47.
+
+### 38. Installable app: Add Streakly to the Home Screen (PR #72)
+
+**Problem:** on a phone, Streakly was a browser tab. A habit tracker gets
+opened every day, so it should launch like an app, and most people don't
+know how to add a website to their Home Screen.
+
+**Decision:**
+
+- The site has a web app manifest (a file that tells phones the app's name,
+  icons and colors), so it opens full screen from the Home Screen.
+- On Android, Chrome's own one-tap install prompt is used. Everywhere else,
+  an in-app guide shows the steps with an animated phone. It knows iPhone
+  Safari, other iPhone browsers, iPads that report themselves as Macs, and
+  Android apart.
+- A small tip and an account menu item ("Add to Home Screen") offer it
+  until the app is installed. Dismissing the tip hides it for the visit.
+
+### 39. Onboarding: Try the demo without an account (PR #73)
+
+**Problem:** a visitor had to sign up before seeing anything.
+
+**Decision:** the sign-in page has a "Try the demo" button. It opens the
+real app on 13 sample goals that live only in the browser's memory, so
+check-ins, reordering and editing all work, nothing is saved, and a reload
+starts over. The demo and the server's seed script use the same sample data
+(`packages/shared/src/demo.ts`), and the app talks to a `GoalsClient`, so
+the demo plugs in an in-memory client instead of the api one.
+
+### 40. Interaction design: Reordering moves the card and its pill together (PR #74)
+
+**Problem:** reordering a card didn't move its pill in the bottom bar along
+with it (or the other way round), and the movement jumped.
+
+**Decision:** on phones, holding a pill zooms the deck out so the cards
+around it are visible, and they slide as the pill passes them. On tablets
+and desktop, dragging a card slides its pill into place. Every slide starts
+from where the item is on screen right now, so quick moves blend into one
+motion. Reduced-motion settings keep the result without the animation.
+
+### 41. Rate limiting: Limits that can't be dodged, on every route (PRs #75, #84)
+
+**Problem:** two gaps.
+
+- With no trusted IP header configured, the server read `X-Forwarded-For`,
+  a header any client can set. Sending a new value with each request gave
+  a fresh sign-in limit every time.
+- Only the login endpoints had limits. A signed-in account could read or
+  write goals in a tight loop, and every read recalculates every streak.
+
+**Decision:**
+
+- The server never reads `X-Forwarded-For`. It trusts only the header named
+  in `CLIENT_IP_HEADER`, which the host's edge sets, and refuses to start in
+  production without it (decision 33).
+- Two unused login endpoints were switched off. One of them
+  (`verify-password`) checked passwords without the strict sign-in limit.
+- Goal routes are limited per user: 120 reads and 60 writes a minute, in
+  separate buckets so a burst of writes never blocks reading. Change them
+  with `GOALS_READS_PER_MINUTE` and `GOALS_WRITES_PER_MINUTE`.
+
+**Limit:** the counts live in the api's memory. That's fine for one api
+instance; more than one needs shared storage such as Redis (see
+`DEPLOY.md`).
+
+### 42. Unbounded work: One old check-in could freeze the server (PR #76)
+
+**Problem:** this was **unbounded work**: the cost of a request depended on
+data a user controls, with no upper limit. The longest-streak math walked
+every calendar day between a goal's first and last check-in. A check-in
+dated `0001-01-01` meant about 740,000 steps, roughly 1.2 seconds, on every
+read of that goal. The api handles one request at a time per process, so
+everyone waited.
+
+**Decision:**
+
+- The math walks the check-ins instead of the calendar: one step per
+  check-in. A gap of 7 or more days always contains a scheduled day (every
+  schedule repeats weekly), so each gap costs at most 7 steps.
+- Check-in dates must fall between 2000-01-01 and 2099-12-31.
+- A test compares the new math with the old calendar walk on 300 random
+  histories and gets the same answers.
+
+### 43. Input validation: Limits on everything a client sends (PR #77)
+
+**Problem:** the api accepted request bodies up to 128 MiB, any number of
+goals, check-ins years in the future, and an account name of any length (a
+2,000,000-character name was stored and then sent back on every page load).
+Goal writes also accepted form and plain-text bodies, which other websites
+can send with a user's cookie without asking first.
+
+**Decision:**
+
+- Only `application/json` bodies are read (415 otherwise). Another site
+  can't send JSON to the api without the browser asking permission first,
+  and the api never grants it.
+- Bodies over 64 KiB are refused (413) before any route runs.
+- At most 100 goals per user.
+- A check-in can be dated at most 2 days after the user's today. That covers
+  a stored time zone that trails the device after travel.
+- Account names are capped at 80 characters and image URLs at 2048.
+
+### 44. Dependency security: No critical advisories (PR #78)
+
+**Problem:** `bun audit` reported 4 critical advisories, including two in
+Next.js: one that lets requests skip middleware, and one that can crash the
+server.
+
+**Decision:** upgraded `next` to 16.4, `zod` to 4.6 and `hono` to 4.13. The
+remaining advisories are in build and lint tools only, which never ship to
+users. `eslint-config-next` stays on 16.1 for now: its newer rules flag
+real issues in components, and fixing those deserves its own PR.
+
+### 45. Security headers: The website tells browsers to lock it down (PR #79)
+
+**Problem:** the website sent no security headers. Any site could load the
+account page inside a hidden frame and trick a click (clickjacking).
+
+**Decision:** every response carries a strict Content-Security-Policy (the
+page may load scripts, styles, images and fonts only from Streakly itself),
+`X-Frame-Options: DENY`, `nosniff`, a referrer policy, and HSTS (always use
+https). Scripts and styles still allow inline code, because Next.js writes
+some inline; moving to nonces is a separate change. The local Postgres port
+is now only reachable from this machine, because its dev password is in
+the repo.
+
+### 46. Deployment: A handover checklist, and CI on every PR (PRs #80, #81)
+
+**Problem:** "pick a host and deploy" had no checklist, nothing listed the
+environment variables, and no check ran automatically on a PR.
+
+**Decision:**
+
+- `DEPLOY.md` is the checklist: what the host must provide, every
+  environment variable, first-boot checks, a sign-in round trip, known
+  limits and rollback.
+- `.env.example` documents every variable with a dev value, and a test fails
+  when the boot guard requires a variable the template doesn't list.
+- GitHub Actions runs four jobs on every PR: typecheck, lint, unit tests,
+  and the api tests against Postgres.
+- `db:push` is gone: it changes the database without a migration, so the
+  change never reaches a deploy. Schema changes go through `db:migrate`.
+
+### 47. Test isolation: Tests can never reach the dev database (PRs #83, #88)
+
+**Problem:** this is worst bug 1. Bun runs all test files in one process
+and shares loaded code between them, including the api's database
+connection. That connection uses the database that was configured when the
+app was first loaded. Each database test file sets its own test database
+first, but one test file loads the app without setting any. When it ran
+first, the next file's tests used the database in `.env`. On CI that
+database was empty, and 22 tests failed. On a laptop it is the dev
+database, so the tests passed while writing test accounts into it. The
+file order hid it: Windows runs the files alphabetically, which happened
+to be safe.
+
+**Decision:** every test command runs with `--isolate`, which gives each
+test file a fresh copy of the app's code. That covers CI, `bun run test`
+at the root and `bun run test` in `apps/api`.
+
+**Lesson:** a test suite that can reach real data has to be unable to by
+design, not safe by luck of file order.
+
+### 48. Double counting: Each request checks sign-in and the rate limit once (PR #86)
+
+**Problem:** the goal routes are two routers, one for the whole list and
+one for a single goal, with the second mounted inside the first. Both had
+the sign-in check and the rate limiter attached. Middleware attached to the
+outer router (code that runs before every route) already covers the inner
+one, so every single-goal request ran both twice: two session lookups in
+the database, and two counts against the limit. The 60-writes-a-minute
+limit was really 30 check-ins.
+
+**Decision:** the middleware sits on the outer router only. Tests check
+that a check-in counts once and that a single-goal request without a
+session still gets 401.
+
+### 49. Retry safety: A check-in can be sent twice without undoing it (PR #87)
+
+**Problem:** `POST /goals/:id/checkins` toggled: it added the check-in if
+missing and deleted it if present. A request that runs twice therefore
+undid itself. That happens when the server saves a check-in but the reply
+is lost: the screen rolls back to "not done", and the next tap deletes the
+real check-in.
+
+**Decision:** each request says what the user wants. `POST` only checks in,
+and an existing check-in counts as success. `DELETE` removes it. The button
+still toggles; the website sends `checked` or `unchecked`
+(`GoalsClient.setChecked`). A test sends two check-ins at once and expects
+exactly one.
+
+**Why it matters later:** the planned offline mode (roadmap item 5) will
+resend changes after the connection comes back, and that is only safe if
+sending twice is the same as sending once.
+
+### 50. Log spoofing: Visitors can't choose the request id (PR #92)
+
+**Problem:** the api reuses an incoming `x-request-id` header, so a hosting
+proxy's trace id carries through to the logs (decision 37). But the website
+forwards browser headers unchanged, so any visitor could set it: reuse
+another request's id to confuse an investigation, or fill every log line
+with kilobytes of text.
+
+**Decision:** a supplied id is reused only if it's 1–128 letters, digits,
+`_`, `.` or `-`, which covers normal trace ids. Anything else gets a fresh
+random id.
 
 ---
 
@@ -691,7 +984,8 @@ Postgres 16, started with `docker compose up -d` (port 5432). Demo data:
 - **App tables:** `goals` belong to a user (deleting the user deletes their
   goals). `check_ins` belong to a goal and have no `userId` of their own:
   ownership goes user → goal → check-in. One check-in per goal per day (a
-  unique rule), which also makes a double-click harmless.
+  unique rule). Checking in twice for the same day changes nothing
+  (decision 49).
 - **Time zone** is stored once, on the user (sent by the browser; see
   decision 20). It is never copied onto goals, so there is only one place
   to change it.
@@ -713,15 +1007,19 @@ Postgres 16, started with `docker compose up -d` (port 5432). Demo data:
    The UI overhaul for phone, tablet and desktop. **DONE** (PR #65).
    Getting ready for a first deploy: the website moves into `apps/web`
    (PR #67), production settings (PR #68), Docker images (PR #69),
-   clean shutdown, health checks and request logs (PR #83).
-   **IN PROGRESS:** next is picking a host and deploying. The handover
-   checklist lives in `DEPLOY.md` (host requirements, environment
-   variables, first-boot probes, known limits, rollback), and
-   `.env.example` lists every variable with a dev value.
+   clean shutdown, health checks and request logs (PR #83), and a
+   security and reliability pass: rate limits, input limits, security
+   headers, dependency upgrades and retry-safe check-ins (PRs #75–#92).
+   The deploy checklist (`DEPLOY.md`), `.env.example` and CI exist
+   (PRs #80, #81).
    Forgot and change password (PR #70 server, PR #71 website).
+   **IN PROGRESS:** next is picking a host and deploying, following
+   `DEPLOY.md`.
 4. Payments with Stripe (after launch).
-5. Installable app that works offline (PWA). Changes made offline are stored
-   in the browser and sent when back online. This is when the browser starts
+5. Installable app that works offline (PWA). Installing to the Home Screen
+   is **DONE** (PR #72), and so is a demo that runs without an account
+   (PR #73). Still to build: changes made offline are stored in the
+   browser and sent when back online. This is when the browser starts
    creating ids itself (uuid v7). Check-ins merge safely, since there's one
-   per day; for text edits, the last save wins. A mobile app (Expo) would
-   reuse this later.
+   per day and sending one twice changes nothing; for text edits, the last
+   save wins. A mobile app (Expo) would reuse this later.
