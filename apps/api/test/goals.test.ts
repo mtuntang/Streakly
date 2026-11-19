@@ -403,8 +403,8 @@ describe("goal route rate limits", () => {
     process.env[LIMITER.writes] = "2";
     const api = createTestApi(app, await cookieFor(WRITER));
     const goal = await (await api.goals.create({ name: "counted" })).json();
-    expect((await api.goals.toggle(goal.id)).status).toBe(200);
-    expect((await api.goals.toggle(goal.id)).status).toBe(429);
+    expect((await api.goals.checkIn(goal.id)).status).toBe(200);
+    expect((await api.goals.checkIn(goal.id)).status).toBe(429);
   });
 
   it("keeps one user's spent budget from blocking another user", async () => {
