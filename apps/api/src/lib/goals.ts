@@ -252,29 +252,20 @@ function fromDayDate(date: Date): string {
 }
 
 /**
- * Toggles a check-in for one goal+date. Returns true when the check-in was
- * created, false when it was removed. Race-safe: two concurrent toggles on
- * a missing check-in resolve to one create (the loser hits the unique
- * constraint and removes instead of erroring).
+ * Checks one goal in for one date. Checking in twice is the same as once:
+ * a retry after a lost response, or two taps at once, must never undo it,
+ * so an existing check-in (the unique constraint firing) counts as done.
  */
-export async function toggleCheckIn(
+export async function addCheckIn(
   userId: string,
   id: string,
   dateKey: string,
-): Promise<boolean> {
+): Promise<void> {
   await requireOwnedGoal(userId, id);
   try {
     await db.checkIn.create({ data: { goalId: id, date: toDayDate(dateKey) } });
-    return true;
   } catch (error) {
-    if (isPrismaError(error, "P2002")) {
-      // Already checked in for that date → this toggle means "un-check".
-      await db.checkIn.deleteMany({
-        where: { goalId: id, date: toDayDate(dateKey) },
-      });
-      return false;
-    }
-    translatePrismaError(error);
+    if (!isPrismaError(error, "P2002")) translatePrismaError(error);
   }
 }
 

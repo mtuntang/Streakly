@@ -9,13 +9,13 @@ import {
   zonedToday,
 } from "@streakly/shared";
 import {
+  addCheckIn,
   createGoal,
   deleteGoal,
   loadGoal,
   loadGoals,
   removeCheckIn,
   reorderGoals,
-  toggleCheckIn,
   updateGoal,
 } from "../lib/goals";
 import { badRequest, notFound, parseBody } from "../lib/http";
@@ -108,8 +108,8 @@ async function deleteGoalRoute(c: Context<AuthEnv>) {
   return c.json({ ok: true });
 }
 
-/** POST /goals/:id/checkins — toggle a check-in (defaults to today; at most MAX_DAYS_AHEAD days ahead). */
-async function toggleCheckInRoute(c: Context<AuthEnv>) {
+/** POST /goals/:id/checkins — check in (defaults to today; at most MAX_DAYS_AHEAD days ahead). Repeating it changes nothing. */
+async function checkInRoute(c: Context<AuthEnv>) {
   const userId = c.get("userId");
   const id = c.req.param("id")!;
 
@@ -120,8 +120,8 @@ async function toggleCheckInRoute(c: Context<AuthEnv>) {
   }
   const dateKey = date ?? today;
 
-  const checked = await toggleCheckIn(userId, id, dateKey);
-  return c.json({ checked, goal: await loadGoalOrThrow(c, id) });
+  await addCheckIn(userId, id, dateKey);
+  return c.json({ checked: true, goal: await loadGoalOrThrow(c, id) });
 }
 
 /** DELETE /goals/:id/checkins — remove a check-in (?date=YYYY-MM-DD, defaults to today). */
@@ -155,7 +155,7 @@ const goalResource = new Hono<AuthEnv>()
   .get("/:id", getGoalRoute)
   .patch("/:id", updateGoalRoute)
   .delete("/:id", deleteGoalRoute)
-  .post("/:id/checkins", toggleCheckInRoute)
+  .post("/:id/checkins", checkInRoute)
   .delete("/:id/checkins", removeCheckInRoute);
 
 export default goalsCollection.route("/", goalResource);

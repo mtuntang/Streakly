@@ -122,8 +122,8 @@ describe("check-in dates", () => {
     const goal = await (await api.goals.create({ name: "dated" })).json();
     // No zone stored: the user's today is the server's today.
     const today = todayKeyIn(null);
-    expect((await api.goals.toggle(goal.id, { date: plusDays(today, 2) })).status).toBe(200);
-    expect((await api.goals.toggle(goal.id, { date: plusDays(today, 3) })).status).toBe(400);
+    expect((await api.goals.checkIn(goal.id, { date: plusDays(today, 2) })).status).toBe(200);
+    expect((await api.goals.checkIn(goal.id, { date: plusDays(today, 3) })).status).toBe(400);
   });
 });
 
