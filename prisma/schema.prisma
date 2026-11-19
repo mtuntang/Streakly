@@ -50,7 +50,6 @@ model CheckIn {
   goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
 
   @@unique([goalId, date])
-  @@index([date])
   @@map("check_ins")
 }
 
