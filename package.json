@@ -4,12 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "bun run --cwd apps/web dev",
-    "build": "cd apps/web && npm run build",
+    "build": "bun run --cwd apps/web build",
     "start": "bun run --cwd apps/web start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
     "test": "bun test",
-    "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
