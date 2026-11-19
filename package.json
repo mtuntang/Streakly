@@ -21,6 +21,7 @@
   ],
   "dependencies": {
     "@prisma/client": "^6.11.1",
+    "@streakly/shared": "workspace:*",
     "prisma": "^6.11.1"
   },
   "devDependencies": {
