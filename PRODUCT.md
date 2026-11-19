@@ -44,9 +44,11 @@ Shipped:
 - A check-in toggle for today, including voluntary check-ins on rest days.
 - Streak stats: current streak, best streak, total check-ins, and a completion rate. Weekly goals also show quota progress and an at-risk warning.
 - A heatmap of each goal's history, and a detail view.
-- Goals can be reordered by dragging their cards, with a mouse or by touch.
+- Goals can be reordered by dragging their cards, with a mouse or by touch, or with "Move earlier" / "Move later" in each card's menu.
 - Email and password accounts with a 10-character minimum password, sign-in rate limits, and the user's time zone saved.
 - Password reset by email (a one-time link that expires in 1 hour) and password change from the account page. Both sign out the user's other devices.
+- A demo anyone can try from the sign-in page without an account. It runs on sample goals in the browser and saves nothing.
+- Up to 100 goals per account.
 
 Not built yet. UI and copy must not suggest these exist:
 
@@ -59,7 +61,7 @@ Terminology: goal, check-in, streak, cadence ("Every day" / "Specific days" / "X
 
 ## Brand Commitments
 
-- The name is Streakly. The logo is the flame tile (`public/logo.svg`, `public/favicon.svg`).
+- The name is Streakly. The logo is the flame tile (`apps/web/public/logo.svg`, `apps/web/public/favicon.svg`).
 - Goal cards are the main interface, and the user can rearrange them.
 - Each goal's history is shown as a GitHub-style contribution heatmap: a grid of days, one week per column, with each day filled in or empty.
 - Taglines in use: "Stay consistent, one day at a time" and "Don't break the chain".
@@ -70,7 +72,7 @@ Terminology: goal, check-in, streak, cadence ("Every day" / "Specific days" / "X
 
 ## Evidence on Hand
 
-- Demo data for development only (`prisma/seed.ts`): 4 goals and about 109 check-ins.
+- Sample data for development and the demo (`packages/shared/src/demo.ts`, used by `prisma/seed.ts` and the `/demo` page): 13 goals with about 18 weeks of generated history.
 - There are no real users, testimonials, usage numbers, press coverage, or pricing yet. Do not make any of these up.
 
 ## Product Principles
@@ -87,7 +89,7 @@ Terminology: goal, check-in, streak, cadence ("Every day" / "Specific days" / "X
 The standard is WCAG 2.2 Level AA, the current W3C recommendation. It includes all of 2.1 AA, which is the level most accessibility laws point to. In practice:
 
 - Text contrast is at least 4.5:1 (3:1 for large text). Icons, controls, and focus indicators are at least 3:1.
-- Every action works with a keyboard except reordering goals, and keyboard focus is always visible. Reordering is drag-only by choice. That one action falls short of WCAG 2.1.1 (keyboard) and 2.5.7 (an alternative to dragging).
+- Every action works with a keyboard, and keyboard focus is always visible. Reordering by drag also has a non-drag way: "Move earlier" and "Move later" in each card's menu.
 - Controls have names screen readers can announce. The heatmap has a text summary, and changes in state are announced.
 - Animation is reduced or removed when the user has asked their system for reduced motion.
 - Touch targets are at least 24×24 CSS px (the WCAG 2.2 AA minimum), and primary actions on mobile aim for 44px.
