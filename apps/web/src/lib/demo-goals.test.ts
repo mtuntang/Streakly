@@ -11,13 +11,14 @@ describe("demo goals client", () => {
     expect(goals.map((g) => g.name)).toEqual(DEMO_GOALS.map((g) => g.name));
   });
 
-  test("toggle checks in and undoes it, with fresh stats", async () => {
+  test("setChecked checks in and removes it, with fresh stats, and repeats safely", async () => {
     const client = createDemoGoalsClient(() => TODAY);
     const [goal] = (await client.list()).filter((g) => !g.stats.doneToday);
-    const checked = await client.toggle(goal.id, today);
+    const checked = await client.setChecked(goal.id, today, true);
     expect(checked.stats.doneToday).toBe(true);
     expect(checked.stats.total).toBe(goal.stats.total + 1);
-    const undone = await client.toggle(goal.id, today);
+    expect((await client.setChecked(goal.id, today, true)).stats).toEqual(checked.stats);
+    const undone = await client.setChecked(goal.id, today, false);
     expect(undone.stats).toEqual(goal.stats);
   });
 

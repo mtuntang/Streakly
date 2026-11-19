@@ -118,8 +118,8 @@ export function useGoals(client: GoalsClient = apiGoalsClient) {
    * failure undoes only this click.
    */
   const toggleToday = React.useCallback(async (goal: GoalDTO) => {
-    // The endpoint is a toggle, so a second click while the first request is
-    // in flight would undo it. Ignore clicks until the goal's request settles.
+    // A second click while the first request is in flight would race it.
+    // Ignore clicks until the goal's request settles.
     if (togglesInFlight.current.has(goal.id)) return;
     togglesInFlight.current.add(goal.id);
     // Read the date at click time: a tab left open past midnight must check
@@ -129,7 +129,7 @@ export function useGoals(client: GoalsClient = apiGoalsClient) {
     setGoals((prev) => setCheckedOn(prev, goal.id, today, !wasDone));
 
     try {
-      const saved = await client.toggle(goal.id, today);
+      const saved = await client.setChecked(goal.id, today, !wasDone);
       setGoals((prev) => replaceGoal(prev, saved));
     } catch {
       // Undo only this click, on the goal as it is now: restoring the

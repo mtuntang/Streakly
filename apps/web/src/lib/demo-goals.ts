@@ -82,9 +82,10 @@ export function createDemoGoalsClient(now: () => Date = () => new Date()): Goals
 
   return {
     list: async () => list(),
-    toggle: async (id, date) => {
+    setChecked: async (id, date, checked) => {
       const row = find(id);
-      if (!row.checkIns.delete(date)) row.checkIns.add(date);
+      if (checked) row.checkIns.add(date);
+      else row.checkIns.delete(date);
       return toGoalDTO(row, now);
     },
     reorder: async (ids) => {

@@ -142,18 +142,25 @@ describe("goals api", () => {
     expect(goal.schedule).toBeNull();
   });
 
-  it("POST /:id/checkins toggles on then off; GET list reflects it", async () => {
+  it("POST /:id/checkins checks in, and repeating it keeps the one check-in", async () => {
     const api = createTestApi(app, await cookieFor(USERS.alice));
-    const on = await api.goals.toggle(createdId);
-    expect((await on.json()).checked).toBe(true);
+    const first = await (await api.goals.checkIn(createdId)).json();
+    expect(first.checked).toBe(true);
 
-    const off = await api.goals.toggle(createdId);
-    expect((await off.json()).checked).toBe(false);
+    // A retry, or two taps at once, must never undo the check-in.
+    const again = await Promise.all([api.goals.checkIn(createdId), api.goals.checkIn(createdId)]);
+    for (const res of again) {
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.checked).toBe(true);
+      expect(body.goal.stats.total).toBe(first.goal.stats.total);
+    }
+    await api.goals.uncheck(createdId);
   });
 
   it("DELETE /:id/checkins removes a check-in explicitly", async () => {
     const api = createTestApi(app, await cookieFor(USERS.alice));
-    await api.goals.toggle(createdId);
+    await api.goals.checkIn(createdId);
     const res = await api.goals.uncheck(createdId);
     expect(res.status).toBe(200);
     expect((await res.json()).checked).toBe(false);
@@ -161,7 +168,7 @@ describe("goals api", () => {
 
   it("a check-in reads back on the same date it was saved", async () => {
     const api = createTestApi(app, await cookieFor(USERS.alice));
-    const res = await api.goals.toggle(createdId, { date: "2026-10-14" });
+    const res = await api.goals.checkIn(createdId, { date: "2026-10-14" });
     const { goal } = await res.json();
     expect(goal.checkIns.map((c: { date: string }) => c.date)).toContain("2026-10-14");
     await api.goals.uncheck(createdId, "2026-10-14");
@@ -170,7 +177,7 @@ describe("goals api", () => {
   it("check-in dates that are not real calendar days are rejected (400)", async () => {
     const api = createTestApi(app, await cookieFor(USERS.alice));
     for (const date of ["2026-02-31", "2026-13-45"]) {
-      expect((await api.goals.toggle(createdId, { date })).status).toBe(400);
+      expect((await api.goals.checkIn(createdId, { date })).status).toBe(400);
       expect((await api.goals.uncheck(createdId, date)).status).toBe(400);
     }
   });
@@ -231,7 +238,7 @@ describe("goals api", () => {
     expect((await bob.goals.get(created.id)).status).toBe(404);
     expect((await bob.goals.update(created.id, { name: "hijacked" })).status).toBe(404);
     expect((await bob.goals.remove(created.id)).status).toBe(404);
-    expect((await bob.goals.toggle(created.id)).status).toBe(404);
+    expect((await bob.goals.checkIn(created.id)).status).toBe(404);
 
     // Bob's list never contained it; Alice's still does.
     const bobList = await (await bob.goals.list()).json();
@@ -271,7 +278,7 @@ describe("goals api", () => {
     const b = await (await bob.goals.create({ name: "B-three" })).json();
 
     for (const id of [b.id, crypto.randomUUID()]) {
-      expect((await alice.goals.toggle(id)).status).toBe(404);
+      expect((await alice.goals.checkIn(id)).status).toBe(404);
       expect((await alice.goals.uncheck(id)).status).toBe(404);
     }
     // Bob's goal gained no check-in from Alice's attempts.
@@ -300,7 +307,7 @@ describe("goals api", () => {
     for (const user of [KIRI, PAGO]) {
       const api = createTestApi(app, await cookieFor(user));
       const goal = await (await api.goals.create({ name: `${user.name} daily` })).json();
-      const { checked, goal: after } = await (await api.goals.toggle(goal.id)).json();
+      const { checked, goal: after } = await (await api.goals.checkIn(goal.id)).json();
       expect(checked).toBe(true);
       expect(after.checkIns.map((c: { date: string }) => c.date)).toEqual([
         todayKeyIn(user.timezone),
@@ -316,20 +323,20 @@ describe("goals api", () => {
     // Kiritimati's today is a future day for the server; it must still count.
     const kiri = createTestApi(app, await cookieFor(KIRI));
     const kGoal = await (await kiri.goals.create({ name: "Kiri explicit" })).json();
-    const kRes = await kiri.goals.toggle(kGoal.id, { date: kiriToday });
+    const kRes = await kiri.goals.checkIn(kGoal.id, { date: kiriToday });
     expect((await kRes.json()).goal.stats).toMatchObject({ doneToday: true, current: 1 });
 
     // The same date is a future day in Pago Pago, so it is not counted there.
     const pago = createTestApi(app, await cookieFor(PAGO));
     const pGoal = await (await pago.goals.create({ name: "Pago ahead" })).json();
-    const pRes = await pago.goals.toggle(pGoal.id, { date: kiriToday });
+    const pRes = await pago.goals.checkIn(pGoal.id, { date: kiriToday });
     expect((await pRes.json()).goal.stats).toMatchObject({ doneToday: false, total: 0 });
   });
 
   it("DELETE /:id/checkins without a date removes the user's today", async () => {
     const api = createTestApi(app, await cookieFor(KIRI));
     const goal = await (await api.goals.create({ name: "Kiri uncheck" })).json();
-    await api.goals.toggle(goal.id);
+    await api.goals.checkIn(goal.id);
     const { goal: after } = await (await api.goals.uncheck(goal.id)).json();
     expect(after.checkIns).toEqual([]);
   });

@@ -43,8 +43,8 @@ export function createTestApi(
       /** DELETE /goals/:id — permanent. */
       remove: (id: string) => req(`/api/goals/${id}`, { method: "DELETE" }),
 
-      /** POST /goals/:id/checkins — toggle; date optional (today). */
-      toggle: (id: string, body: { date?: string } = {}) =>
+      /** POST /goals/:id/checkins — check in; date optional (today). */
+      checkIn: (id: string, body: { date?: string } = {}) =>
         req(`/api/goals/${id}/checkins`, { method: "POST", body: JSON.stringify(body) }),
 
       /** DELETE /goals/:id/checkins — remove a check-in. */

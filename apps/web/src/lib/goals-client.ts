@@ -18,8 +18,8 @@ import { apiFetch } from "@/lib/api-fetch";
 export interface GoalsClient {
   /** Returns the goals in their saved order, with streak stats. */
   list(): Promise<GoalDTO[]>;
-  /** Checks goal `id` in for `date`, or undoes that check-in; returns the goal. */
-  toggle(id: string, date: string): Promise<GoalDTO>;
+  /** Checks goal `id` in for `date` (`checked`), or removes that check-in; returns the goal. Repeating a call changes nothing. */
+  setChecked(id: string, date: string, checked: boolean): Promise<GoalDTO>;
   /** Saves the order in `ids` and returns the reordered list. */
   reorder(ids: string[]): Promise<GoalDTO[]>;
   /** Creates a goal, or updates goal `id` when it is set; returns the saved goal. */
@@ -66,12 +66,12 @@ function jsonBody(method: string, body: unknown): RequestInit {
 /** The signed-in user's goals, read and written through the api. */
 export const apiGoalsClient: GoalsClient = {
   list: () => requestJson("/api/goals", GoalListSchema, { cache: "no-store" }),
-  toggle: async (id, date) =>
+  setChecked: async (id, date, checked) =>
     (
       await requestJson(
-        `/api/goals/${id}/checkins`,
+        checked ? `/api/goals/${id}/checkins` : `/api/goals/${id}/checkins?date=${date}`,
         CheckInResponseSchema,
-        jsonBody("POST", { date }),
+        checked ? jsonBody("POST", { date }) : { method: "DELETE" },
       )
     ).goal,
   reorder: (ids) =>
