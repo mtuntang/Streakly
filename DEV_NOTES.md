@@ -641,6 +641,44 @@ the website had no screens for it.
   form. It warns that other devices will be signed out, and tells people
   who forgot their current password how to reset it instead.
 
+### 37. Deployment: The api shuts down cleanly, reports its health and logs every request (PR #83)
+
+**Problem:** three gaps made a deployed api hard to run and to debug.
+
+- **No graceful shutdown.** To deploy a new version, the host sends the old
+  process a stop signal (SIGTERM). The api ignored it and was killed
+  mid-request, so people saw errors for requests that may already have
+  been saved.
+- **No health check.** The host only knew whether the process was running,
+  so an api that was stuck kept getting traffic.
+- **No request log.** The api logged only crashes, so a report like "it
+  failed sometime yesterday" couldn't be traced to any request.
+
+**Decision:**
+
+- On SIGTERM the api stops taking new requests, lets open ones finish,
+  closes the database connection and exits. It gives up after 10 seconds,
+  so a deploy never hangs.
+- Both Docker images have a health check. The api's calls `/api/health`.
+  The website's only checks that the site answers: if it depended on the
+  api, an api outage would make the host restart the website over and
+  over, which can't fix anything.
+- One log line per request: method, path, status, time taken and a
+  **request id**. The id also goes back in the `x-request-id` header, and
+  a 500 error includes it, so a user's screenshot leads to exactly one log
+  line. Query strings, bodies and headers are never logged, because a
+  password-reset link carries its token in the query string.
+- An unknown address answers `{ "error": "Not found." }`, the same shape as
+  every other error.
+
+**Gotcha:** the api tests now run with `bun test --env-file=../../.env
+--isolate`. Bun shares loaded code between test files, so the database
+connection used whatever database was configured when the app was first
+loaded. A test file that loaded the app without picking a test database
+sent the next file's queries to the main database from `.env`. On CI
+that broke 22 tests; on a laptop it quietly wrote test users into the dev
+database. `--isolate` gives each test file a fresh start.
+
 ---
 
 ## How data is stored
@@ -674,7 +712,8 @@ Postgres 16, started with `docker compose up -d` (port 5432). Demo data:
    hook. **DONE** (PR #62).
    The UI overhaul for phone, tablet and desktop. **DONE** (PR #65).
    Getting ready for a first deploy: the website moves into `apps/web`
-   (PR #67), production settings (PR #68), Docker images (PR #69).
+   (PR #67), production settings (PR #68), Docker images (PR #69),
+   clean shutdown, health checks and request logs (PR #83).
    **IN PROGRESS:** next is picking a host and deploying. The handover
    checklist lives in `DEPLOY.md` (host requirements, environment
    variables, first-boot probes, known limits, rollback), and
