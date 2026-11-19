@@ -1,8 +1,8 @@
 # Deploying Streakly
 
 Everything here is verified against the code in this repo as of the
-audit-hardening PRs (#75-#80). If a step disagrees with the code, the code
-wins — fix this file in the same PR.
+security and reliability PRs (#75-#92). If a step disagrees with the code,
+the code wins — fix this file in the same PR.
 
 Two images, one database:
 
@@ -34,19 +34,23 @@ What the deployment actually needs:
   hold the edge's IP instead of the visitor's.
 - **An in-memory rate limiter, one instance.** See "Known limits" below
   before you scale past one api container.
+- **At least 10 seconds between the stop signal and a forced kill.** On
+  SIGTERM the api finishes open requests and closes the database pool, and
+  gives up after 10 seconds. A host that kills sooner cuts requests off.
 
 ## 2. Set the environment
 
-Copy `.env.example` to your platform's environment settings. The api's boot
-guard (`apps/api/src/lib/env-guard.ts`) refuses to start outside development
-and test unless all five of these are present and valid:
+Copy `.env.example` to your platform's environment settings. The api needs
+`DATABASE_URL` to reach the database, and its boot guard
+(`apps/api/src/lib/env-guard.ts`) refuses to start outside development and
+test unless the other five are present and valid:
 
 | Variable | Value |
 | --- | --- |
 | `DATABASE_URL` | The managed database URL. `?sslmode=require` when the host requires TLS. |
 | `BETTER_AUTH_SECRET` | 32+ characters, `openssl rand -base64 32`. Rotating it signs everyone out. |
 | `BETTER_AUTH_URL` | **The website's public origin**, `https://your-domain`. Not the api's URL. It drives the origin check and the Secure cookie flag. |
-| `RESEND_API_KEY` | The Resend key. Without it password reset emails silently never send. |
+| `RESEND_API_KEY` | The Resend key. Password reset emails are sent through it. |
 | `EMAIL_FROM` | `Streakly <hello@your-domain>`. The domain must be verified in Resend. |
 | `CLIENT_IP_HEADER` | The edge's client-IP header. `none` only when there is no edge proxy. |
 
@@ -117,15 +121,16 @@ curl -i -X POST https://your-domain/api/auth/sign-in/email \
   -d '{"email":"nobody@example.com","password":"wrong"}'
 ```
 
-Repeat six times from two different networks. Expected: six 401s, then 429
-on the sixth attempt **per IP**, and a different network is not locked out.
+Repeat six times from two different networks. Expected: five 401s, then
+429 on the sixth attempt **per IP**, and a different network is not locked
+out.
 If both networks get locked together, the header holds the edge's IP —
 change `CLIENT_IP_HEADER` or add a proxy that appends the real one.
 
 ## 7. Security headers
 
 ```sh
-curl -I https://your-domain/ | grep -Ei 'content-security|x-frame|strict-transport|referrer|permissions'
+curl -I https://your-domain/ | grep -Ei 'content-security|x-frame|x-content-type|strict-transport|referrer|permissions'
 ```
 
 All six must be present. `script-src` must not contain `'unsafe-eval'` in a
