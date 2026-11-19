@@ -272,3 +272,52 @@ describe("30-day completion rate", () => {
     expect(computeStreaks([], NOW).rate30).toBe(0);
   });
 });
+
+describe("computeStreaks longest (cost and equivalence)", () => {
+  // The calendar walk that longest used to be: every day from the first to
+  // the last check-in. Kept here as the reference the faster version must match.
+  function calendarLongest(keys: string[], scheduledDays: number[] | null): number {
+    const set = new Set(keys.filter((k) => k <= toKey(NOW)));
+    const sorted = [...set].sort();
+    if (sorted.length === 0) return 0;
+    const scheduled = (d: Date) => !scheduledDays || scheduledDays.includes(d.getDay());
+    let run = 0;
+    let longest = 0;
+    const cursor = new Date(`${sorted[0]}T00:00:00`);
+    const end = new Date(`${sorted[sorted.length - 1]}T00:00:00`);
+    while (cursor <= end) {
+      if (scheduled(cursor)) {
+        run = set.has(toKey(cursor)) ? run + 1 : 0;
+        longest = Math.max(longest, run);
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return longest;
+  }
+
+  it("matches the calendar walk on random histories and schedules", () => {
+    // A fixed-seed generator keeps failures reproducible.
+    let seed = 42;
+    const random = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
+    for (let trial = 0; trial < 300; trial++) {
+      const days = trial % 2 === 0 ? null : [0, 1, 2, 3, 4, 5, 6].filter(() => random() < 0.5);
+      const schedule = days && days.length > 0 ? { type: "weekdays" as const, days } : null;
+      // Densities from sparse (long gaps) to nearly every day.
+      const density = 0.05 + (trial % 10) / 10;
+      const keys: string[] = [];
+      for (let i = 0; i < 120; i++) {
+        if (random() < density) keys.push(toKey(new Date(NOW.getTime() - i * 86_400_000)));
+      }
+      expect(computeStreaks(keys, NOW, schedule).longest).toBe(
+        calendarLongest(keys, schedule ? schedule.days : null),
+      );
+    }
+  });
+
+  it("a check-in two thousand years old costs no more than a recent one", () => {
+    const start = performance.now();
+    const stats = computeStreaks(["0001-01-01", "2026-09-09"], NOW);
+    expect(performance.now() - start).toBeLessThan(50);
+    expect(stats).toMatchObject({ longest: 1, total: 2 });
+  });
+});
