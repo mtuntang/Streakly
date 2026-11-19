@@ -104,6 +104,13 @@ describe("request ids and the access log", () => {
     expect(res.headers.get("x-request-id")).toBe("trace-from-the-edge");
   });
 
+  it("replaces a supplied id that is too long or has odd characters", async () => {
+    for (const bad of ["x".repeat(129), "id with spaces", "<script>"]) {
+      const res = await app.request("/api/health", { headers: { "x-request-id": bad } });
+      expect(res.headers.get("x-request-id")).toMatch(/^[0-9a-f-]{36}$/);
+    }
+  });
+
   it("writes one line per request with method, path, status and duration", async () => {
     await app.request("/api/nope");
     const line = logged.find((entry) => entry.includes("/api/nope"));

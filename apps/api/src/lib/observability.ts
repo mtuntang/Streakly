@@ -16,7 +16,9 @@ export type RequestEnv = { Variables: { requestId: string } };
  * logged, so no email, cookie or password ends up in the platform's logs.
  */
 export const requestLog: MiddlewareHandler<RequestEnv> = async (c, next) => {
-  const id = c.req.header("x-request-id") ?? randomUUID();
+  // Any visitor can send this header, so only a short plain token is reused.
+  const supplied = c.req.header("x-request-id");
+  const id = supplied && /^[\w.-]{1,128}$/.test(supplied) ? supplied : randomUUID();
   c.set("requestId", id);
   const started = performance.now();
   await next();
