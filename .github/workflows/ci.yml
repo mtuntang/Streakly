@@ -89,9 +89,14 @@ jobs:
           printf 'BETTER_AUTH_URL=http://localhost:3000\n' >> .env
 
       - run: bunx prisma generate
+      # --isolate gives each file its own module registry. Each DB suite sets
+      # DATABASE_URL before importing the app, but a shared registry keeps the
+      # Prisma client from whichever file imported it first, bound to that
+      # file's URL. Without it a suite that runs earlier and doesn't touch
+      # the db (http-layer) sends the next suite to the .env database.
       - name: api tests
         working-directory: apps/api
-        run: bun test --env-file=../../.env
+        run: bun test --env-file=../../.env --isolate
 
       - name: Stop Postgres
         if: always()
