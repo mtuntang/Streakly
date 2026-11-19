@@ -142,6 +142,9 @@ async function removeCheckInRoute(c: Context<AuthEnv>) {
 //   goalsCollection — scoped to the whole set
 //   goalResource    — scoped to one goal id (mounted under the collection,
 //                     so /reorder is guaranteed to match before /:id)
+// The middleware sits on the collection only: it already runs for the
+// mounted per-goal routes, and a second copy would check the session and
+// count the rate limit twice.
 const goalsCollection = new Hono<AuthEnv>()
   .use("*", authenticateSession, goalRateLimit)
   .get("/", listGoals)
@@ -149,7 +152,6 @@ const goalsCollection = new Hono<AuthEnv>()
   .patch("/reorder", reorderGoalsRoute);
 
 const goalResource = new Hono<AuthEnv>()
-  .use("*", authenticateSession, goalRateLimit)
   .get("/:id", getGoalRoute)
   .patch("/:id", updateGoalRoute)
   .delete("/:id", deleteGoalRoute)

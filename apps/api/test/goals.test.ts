@@ -213,6 +213,13 @@ describe("goals api", () => {
       body: "not even json",
     });
     expect(bad.status).toBe(401);
+    // Per-goal routes get their auth from the collection's middleware.
+    const oneGoal = await app.request("/api/goals/00000000-0000-0000-0000-000000000000/checkins", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    expect(oneGoal.status).toBe(401);
   });
 
   it("another user's goal is indistinguishable from a missing one (404)", async () => {
@@ -383,6 +390,14 @@ describe("goal route rate limits", () => {
     expect((await api.goals.create({ name: "second" })).status).toBe(429);
     // The read bucket is untouched by those writes.
     expect((await api.goals.list()).status).toBe(200);
+  });
+
+  it("counts a request to one goal once, like a request to the list", async () => {
+    process.env[LIMITER.writes] = "2";
+    const api = createTestApi(app, await cookieFor(WRITER));
+    const goal = await (await api.goals.create({ name: "counted" })).json();
+    expect((await api.goals.toggle(goal.id)).status).toBe(200);
+    expect((await api.goals.toggle(goal.id)).status).toBe(429);
   });
 
   it("keeps one user's spent budget from blocking another user", async () => {
