@@ -8,7 +8,7 @@
     "start": "bun run --cwd apps/web start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
-    "test": "bun test",
+    "test": "bun test --isolate",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
